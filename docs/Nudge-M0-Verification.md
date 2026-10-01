@@ -147,3 +147,15 @@ Verifikasi manual oleh developer (pending):
 1. Relaunch, select Thinking or Tool Use, then hover the minimized panel. Confirm both usage windows and Demo appear in peek before the turn is done.
 2. Pin expanded, collapse, and revisit permission/question previews. Confirm the same values in both Monitor modes and no usage in minimized or attention.
 3. Repeat hover/expand with Reduce Motion and an external display; verify readable values, tooltip, VoiceOver and stable transitions.
+
+## Follow-up: minimized mascot and status placement
+
+User requested Nudgie on the left and the phase icon on the right. The notched compact header now uses that order for every phase, matching the existing standard-display minimized row. The same camera exclusion band, wing frames, panel dimensions and accessibility action are retained. The product brief and design layout notes record the updated placement; Monitor content and attention interactions keep their existing composition.
+
+Validation: Debug Xcode build succeeded. Full-canvas static render assertions passed for minimized, peek and expanded across Thinking, Tool Use, Completed, Failed and Interrupted on notch/fallback geometry. All ten minimized phase/display captures plus Thinking peek/expanded on both displays were visually inspected; no clipping was found. Physical interaction and motion remain pending developer QA. No config or live integration changes.
+
+Verifikasi manual oleh developer (pending):
+
+1. Relaunch and inspect minimized Thinking/Tool Use: Nudgie must be left of the physical notch and the matching status symbol on the right. Repeat on a standard/external display.
+2. Simulate Done, Failed and Interrupted, and wait for transient expansion to settle where applicable; confirm the minimized orientation stays consistent.
+3. Hover, expand/collapse and repeat with Reduce Motion. Check camera clearance, click behavior and VoiceOver's combined task/status label.

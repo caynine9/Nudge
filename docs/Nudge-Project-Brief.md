@@ -36,7 +36,7 @@ The notch should feel like a tiny native companion that is:
 - local-first,
 - and disposable: if Nudge is closed or broken, normal Codex operation must continue.
 
-The visual identity should include an **original character/mascot** that lives at the right edge of the notch. It should have small contextual animations for thinking, tool use, waiting, completion, interruption, and errors.
+The visual identity should include an **original character/mascot** that lives at the left edge of the notch, with the phase icon on the right in minimized presentation (user-confirmed placement). It should have small contextual animations for thinking, tool use, waiting, completion, interruption, and errors.
 
 The recommended architecture is:
 
@@ -1338,7 +1338,7 @@ Do not reuse:
 
 ### Visual concept
 
-A tiny rounded “cursor creature” / capsule/blob that sits partly tucked against the **right inner edge of the notch**.
+A tiny rounded “cursor creature” / capsule/blob that sits partly tucked against the **left inner edge of the notch**.
 
 Possible shape:
 
@@ -1420,7 +1420,7 @@ Normalize into ~5–7 categories.
 
 Behavior:
 
-- mascot leans slightly out from the right edge,
+- mascot leans slightly out from the left edge,
 - performs one “tap” against notch edge,
 - eyebrow / alert expression,
 - stops animating aggressively after first attention motion.

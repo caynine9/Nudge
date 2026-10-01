@@ -209,6 +209,8 @@ This is an adaptive native panel, not a responsive web grid. Geometry derives fr
 
 For a 180 × 32 pt cutout, minimized remains 264 × 34 pt. Width is clamped to the symmetric screen space around the cutout, leaving 24 pt total margin; height is clamped to screen height minus 32 pt. This also supports negative screen origins.
 
+In minimized presentation, Nudgie occupies the left wing and the current phase symbol occupies the right wing for every phase. The standard-display row follows the same order, with the task title between them. This user-confirmed placement preserves the camera exclusion band and existing dimensions.
+
 Expanded notched content starts after a blank band equal to the camera height, then the extracted content-top spacing. Horizontal content insets differ between notched and fallback displays. Monitor content uses a 12 pt vertical stack and a 12 pt mascot-to-text gap. Permission actions share width and an 8 pt gap; question choices occupy full width in a stack with a 5 pt gap. No outer nested task card or separate detached expanded panel is implemented. Expanded notched modes may cover menu items; minimized preserves the chosen compact wing footprint.
 
 **The One Anchor Rule.** Keep every notched mode attached to the same screen-top anchor, with a blank camera band before expanded content.

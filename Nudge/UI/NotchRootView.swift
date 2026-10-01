@@ -135,12 +135,12 @@ struct NotchRootView: View {
 
     private var compactHeader: some View {
         HStack(spacing: 0) {
+            mascot.scaleEffect(0.68).frame(width: 30, height: 24)
+            Color.clear.frame(width: notchWidth).accessibilityHidden(true)
             Image(systemName: phase.symbol)
                 .font(NotchType.readable(12, weight: .semibold))
                 .foregroundStyle(accent)
                 .frame(width: 30)
-            Color.clear.frame(width: notchWidth).accessibilityHidden(true)
-            mascot.scaleEffect(0.68).frame(width: 30, height: 24)
         }
         .frame(width: compactWidth, height: notchHeight + 2)
         .contentShape(Rectangle())

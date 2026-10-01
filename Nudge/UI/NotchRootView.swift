@@ -182,7 +182,7 @@ struct NotchRootView: View {
     private var monitor: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                if contentMode == .expanded {
+                if contentMode == .peek || contentMode == .expanded {
                     usageLimits
                 }
                 Spacer(minLength: 0)

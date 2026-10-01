@@ -135,3 +135,15 @@ Verifikasi manual oleh developer:
 This completes the requested M0 source change; developer QA and the broader M0 handoff remain pending. Continue to the next phase only after developer instructions.
 
 Independent finish review: **ship** for the scoped M0 source/static change after reviewing the diff, reference, and all 16 captures; no material findings. Ordinary-extension documentation check confirmed existing tokens and dimensions are reused, so design-system files were preserved. Existing DESIGN.md/sidecar/surface-brief motion text still describes the older animated AppKit resizing approach; the later motion verification notes and current source describe the stable-canvas SwiftUI approach. That pre-existing documentation drift was not repaired in this usage task.
+
+## Follow-up: usage visible in hover peek
+
+The user requested usage in peek as well because it matters while working. This supersedes the expanded-only visibility and manual check above: both peek and expanded Monitor now show the same Demo 5-hour/weekly usage strip. The existing peek header has sufficient room, so panel dimensions and hover behavior are unchanged. Minimized and attention content still omit usage. Values remain fixed M0 fixtures.
+
+Validation: Debug Xcode build succeeded. The full-canvas render harness passed shell-bound and anchor assertions for every presentation mode on notch and standard-display geometry. Fresh peek/expanded renders, including navigation errors on both displays, were visually inspected without clipping. No live Codex integration or config mutation was performed. Native interaction remains developer QA.
+
+Verifikasi manual oleh developer (pending):
+
+1. Relaunch, select Thinking or Tool Use, then hover the minimized panel. Confirm both usage windows and Demo appear in peek before the turn is done.
+2. Pin expanded, collapse, and revisit permission/question previews. Confirm the same values in both Monitor modes and no usage in minimized or attention.
+3. Repeat hover/expand with Reduce Motion and an external display; verify readable values, tooltip, VoiceOver and stable transitions.

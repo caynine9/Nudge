@@ -1,14 +1,14 @@
 # M0 — Monitor usage glance
 
-User requested a compact usage strip in expanded Monitor and explicitly chose simulated values within M0. Add 5-hour and weekly windows, used percentage, and time until reset above the focused task. Reuse the black shell, native 11 pt metadata type, green usage text, gray reset text, and existing orange symbol; keep Demo visible. This is an ordinary extension of the existing Operate surface, with no new visual system.
+User requested a compact usage strip in expanded Monitor, subsequently included hover peek, and explicitly chose simulated values within M0. Add 5-hour and weekly windows, used percentage, and time until reset above the focused task in both open Monitor modes. Reuse the black shell, native 11 pt metadata type, green usage text, gray reset text, and existing orange symbol; keep Demo visible. This is an ordinary extension of the existing Operate surface, with no new visual system.
 
-Data flow: authored PlaygroundScenario fixtures → Monitor header in NotchRootView. Usage stays outside lifecycle/presentation reducers; it creates no timers or real account reads. Only expanded Monitor shows the strip. Peek, minimized, attention, navigation and existing dimensions keep their current behavior. A VoiceOver label and help text clarify that percentages are used and durations are until reset.
+Data flow: authored PlaygroundScenario fixtures → Monitor header in NotchRootView. Usage stays outside lifecycle/presentation reducers; it creates no timers or real account reads. Peek and expanded Monitor show the same strip. Minimized, attention, navigation and existing dimensions keep their current behavior. A VoiceOver label and help text clarify that percentages are used and durations are until reset.
 
 Desktop/CLI: this session does not add live monitoring or an account-limit provider. No host versions or config contracts are used by the feature. Missing live data is represented by the explicit Demo fixture, never claimed as real usage. No config/hook/wire mutation, persistence, dependency, credentials or network operations in Nudge. Recovery is reverting these local fixture/view edits.
 
 File yang disentuh:
 - Nudge/Debug/PlaygroundScenario.swift — authored usage-window fixtures.
-- Nudge/UI/NotchRootView.swift — expanded Monitor header and accessible usage labels.
+- Nudge/UI/NotchRootView.swift — peek/expanded Monitor header and accessible usage labels.
 - docs/Nudge-M0-Usage-Plan.md — scope and required rules.
 - docs/Nudge-M0-Verification.md — automated evidence and numbered developer checks.
 

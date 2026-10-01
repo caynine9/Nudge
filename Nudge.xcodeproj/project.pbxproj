@@ -16,6 +16,9 @@
 		A10000000000000000000008 /* NotchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* NotchRootView.swift */; };
 		A10000000000000000000009 /* Nudgie.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* Nudgie.swift */; };
 		A1000000000000000000000A /* PlaygroundMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* PlaygroundMenuView.swift */; };
+		A1000000000000000000000D /* NotchComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000D; };
+		A1000000000000000000000E /* PlaygroundScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E; };
+		A1000000000000000000000F /* CodexNavigator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000F; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,6 +34,9 @@
 		B1000000000000000000000A /* PlaygroundMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaygroundMenuView.swift; sourceTree = "<group>"; };
 		B1000000000000000000000B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B1000000000000000000000C /* Nudge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Nudge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1000000000000000000000D /* NotchComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nudge/UI/NotchComponents.swift; sourceTree = SOURCE_ROOT; };
+		B1000000000000000000000E /* PlaygroundScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nudge/Debug/PlaygroundScenario.swift; sourceTree = SOURCE_ROOT; };
+		B1000000000000000000000F /* CodexNavigator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nudge/Integration/Codex/Navigation/CodexNavigator.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -41,6 +47,9 @@
 		D10000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
+				B1000000000000000000000D /* NotchComponents.swift */,
+				B1000000000000000000000E /* PlaygroundScenario.swift */,
+				B1000000000000000000000F /* CodexNavigator.swift */,
 				D10000000000000000000002 /* Nudge */,
 				D10000000000000000000003 /* Products */,
 			);
@@ -73,6 +82,9 @@
 			A10000000000000000000008 /* NotchRootView.swift in Sources */,
 			A10000000000000000000009 /* Nudgie.swift in Sources */,
 			A1000000000000000000000A /* PlaygroundMenuView.swift in Sources */,
+			A1000000000000000000000D /* NotchComponents.swift in Sources */,
+			A1000000000000000000000E /* PlaygroundScenario.swift in Sources */,
+			A1000000000000000000000F /* CodexNavigator.swift in Sources */,
 		); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 

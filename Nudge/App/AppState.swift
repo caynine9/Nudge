@@ -9,31 +9,52 @@ final class AppState: ObservableObject {
     @Published private(set) var celebrationPulse = 0
     @Published private(set) var reduceMotion = false
     @Published var wantsPanelVisible = true
+    @Published var host: CodexHost = .desktop
+    @Published private(set) var isOpeningHost = false
+    @Published private(set) var navigationIssue: String?
 
     private let reducer = PresentationReducer()
     private var scheduled: [PresentationTimer: Task<Void, Never>] = [:]
     private var turnNumber = 1
 
-    private init() {}
+    init(presentation: PresentationState? = nil, navigationIssue: String? = nil) {
+        if let presentation { self.presentation = presentation }
+        else { self.presentation.snapshot = PlaygroundScenario.snapshot(turn: 1, phase: .thinking) }
+        self.navigationIssue = navigationIssue
+    }
 
     func choose(_ phase: SessionPhase) {
-        let old = presentation.snapshot
-        dispatch(.snapshotChanged(ActivitySnapshot(
-            sessionID: old.sessionID,
-            turnID: old.turnID,
-            projectLabel: old.projectLabel,
-            phase: phase,
-            currentTool: phase == .toolUse
-                ? ToolActivity(category: .test, summary: "Running tests", symbol: "checkmark.circle")
-                : nil,
-            activityLabel: phase == .toolUse ? "Running tests" : phase.title,
-            detail: phase.detail
-        )))
+        navigationIssue = nil
+        dispatch(.snapshotChanged(PlaygroundScenario.snapshot(turn: turnNumber, phase: phase)))
     }
 
     func beginNewTurn() {
         turnNumber += 1
-        dispatch(.snapshotChanged(.demo(turn: turnNumber, phase: .thinking)))
+        navigationIssue = nil
+        dispatch(.snapshotChanged(PlaygroundScenario.snapshot(turn: turnNumber, phase: .thinking)))
+    }
+
+    func resolvePreview(_ feedback: InteractionFeedback) {
+        guard presentation.snapshot.phase.isAttention else { return }
+        let phase: SessionPhase = feedback.kind == .denied ? .interrupted : .toolUse
+        dispatch(.previewInteractionResolved(PlaygroundScenario.snapshot(turn: turnNumber, phase: phase), feedback))
+    }
+
+    func openFocusedHost() {
+        guard !isOpeningHost else { return }
+        isOpeningHost = true
+        navigationIssue = nil
+        let destination = host
+        Task { @MainActor in
+            defer { isOpeningHost = false }
+            do {
+                try await CodexNavigator().open(destination)
+                dispatch(.collapse)
+            } catch {
+                navigationIssue = (error as? CodexNavigator.NavigationError)?.localizedDescription
+                    ?? "Could not open \(destination.title). Open the app, then try again."
+            }
+        }
     }
 
     func dispatch(_ input: PresentationInput) {

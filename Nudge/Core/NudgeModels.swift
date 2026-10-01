@@ -120,17 +120,25 @@ struct ActivitySnapshot: Equatable {
     }
 }
 
-enum NotchPresentation: Equatable {
+enum NotchPresentation: Equatable, CaseIterable {
     case collapsed
     case peek
     case expanded
     case attention
+    case confirmation
+}
+
+struct InteractionFeedback: Equatable {
+    enum Kind { case allowed, denied, selected }
+    let label: String
+    let kind: Kind
 }
 
 enum PresentationTimer: Hashable {
     case peek
     case collapse
     case transient
+    case feedback
 }
 
 struct PresentationState: Equatable {
@@ -139,6 +147,8 @@ struct PresentationState: Equatable {
     var peekVisible = false
     var pinnedOpen = false
     var isSleeping = false
+    var feedback: InteractionFeedback?
+    var feedbackGeneration = 0
     var transientPhase: SessionPhase?
     var consumedCompletionTurnID: String?
     var consumedFailureTurnID: String?
@@ -148,6 +158,7 @@ struct PresentationState: Equatable {
 
     var mode: NotchPresentation {
         if snapshot.phase.isAttention { return .attention }
+        if feedback != nil { return .confirmation }
         if transientPhase != nil { return .expanded }
         if pinnedOpen { return .expanded }
         if peekVisible { return .peek }
@@ -157,6 +168,7 @@ struct PresentationState: Equatable {
 
 enum PresentationInput {
     case snapshotChanged(ActivitySnapshot)
+    case previewInteractionResolved(ActivitySnapshot, InteractionFeedback)
     case pointerChanged(Bool)
     case togglePinned
     case collapse

@@ -1,0 +1,327 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-01T14:38:41.342110+00:00",
+  "title": "Design System: Nudge",
+  "extensions": {
+    "platform": {
+      "name": "native macOS",
+      "minimumVersion": "15",
+      "implementation": "SwiftUI + AppKit NSPanel",
+      "units": "Native logical points; pt in DESIGN.md is not CSS pt. Browser samples approximate points with CSS px.",
+      "preset": "No matching native macOS preset; do not reinterpret as iOS or web."
+    },
+    "sources": [
+      "Nudge/UI/NotchComponents.swift",
+      "Nudge/UI/NotchRootView.swift",
+      "Nudge/UI/NotchGeometry.swift",
+      "Nudge/UI/NotchPanelController.swift",
+      "Nudge/UI/Nudgie.swift",
+      "Nudge/Core/PresentationReducer.swift"
+    ],
+    "colorMeta": {
+      "blue": {
+        "role": "semantic",
+        "displayName": "Working",
+        "tonalRamp": [
+          "oklch(15.000% 0.18046 254.811)",
+          "oklch(26.429% 0.18046 254.811)",
+          "oklch(37.857% 0.18046 254.811)",
+          "oklch(49.286% 0.18046 254.811)",
+          "oklch(60.714% 0.18046 254.811)",
+          "oklch(72.143% 0.18046 254.811)",
+          "oklch(83.571% 0.18046 254.811)",
+          "oklch(95.000% 0.18046 254.811)"
+        ],
+        "rampPurpose": "Synthesized documentation-only swatches; not shipped color tokens or a prescribed usage scale."
+      },
+      "orange": {
+        "role": "semantic",
+        "displayName": "Permission and issues",
+        "tonalRamp": [
+          "oklch(15.000% 0.16629 56.222)",
+          "oklch(26.429% 0.16629 56.222)",
+          "oklch(37.857% 0.16629 56.222)",
+          "oklch(49.286% 0.16629 56.222)",
+          "oklch(60.714% 0.16629 56.222)",
+          "oklch(72.143% 0.16629 56.222)",
+          "oklch(83.571% 0.16629 56.222)",
+          "oklch(95.000% 0.16629 56.222)"
+        ],
+        "rampPurpose": "Synthesized documentation-only swatches; not shipped color tokens or a prescribed usage scale."
+      },
+      "cyan": {
+        "role": "semantic",
+        "displayName": "Question",
+        "tonalRamp": [
+          "oklch(15.000% 0.12193 210.645)",
+          "oklch(26.429% 0.12193 210.645)",
+          "oklch(37.857% 0.12193 210.645)",
+          "oklch(49.286% 0.12193 210.645)",
+          "oklch(60.714% 0.12193 210.645)",
+          "oklch(72.143% 0.12193 210.645)",
+          "oklch(83.571% 0.12193 210.645)",
+          "oklch(95.000% 0.12193 210.645)"
+        ],
+        "rampPurpose": "Synthesized documentation-only swatches; not shipped color tokens or a prescribed usage scale."
+      },
+      "green": {
+        "role": "semantic",
+        "displayName": "Success and additions",
+        "tonalRamp": [
+          "oklch(15.000% 0.17486 152.965)",
+          "oklch(26.429% 0.17486 152.965)",
+          "oklch(37.857% 0.17486 152.965)",
+          "oklch(49.286% 0.17486 152.965)",
+          "oklch(60.714% 0.17486 152.965)",
+          "oklch(72.143% 0.17486 152.965)",
+          "oklch(83.571% 0.17486 152.965)",
+          "oklch(95.000% 0.17486 152.965)"
+        ],
+        "rampPurpose": "Synthesized documentation-only swatches; not shipped color tokens or a prescribed usage scale."
+      },
+      "red": {
+        "role": "semantic",
+        "displayName": "Failure and removals",
+        "tonalRamp": [
+          "oklch(15.000% 0.17801 22.659)",
+          "oklch(26.429% 0.17801 22.659)",
+          "oklch(37.857% 0.17801 22.659)",
+          "oklch(49.286% 0.17801 22.659)",
+          "oklch(60.714% 0.17801 22.659)",
+          "oklch(72.143% 0.17801 22.659)",
+          "oklch(83.571% 0.17801 22.659)",
+          "oklch(95.000% 0.17801 22.659)"
+        ],
+        "rampPurpose": "Synthesized documentation-only swatches; not shipped color tokens or a prescribed usage scale."
+      }
+    },
+    "typographyMeta": {
+      "title": {
+        "displayName": "Title",
+        "purpose": "Native readable interface text; system resolves the macOS font."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Native readable interface text; system resolves the macOS font."
+      },
+      "detail": {
+        "displayName": "Detail",
+        "purpose": "Native readable interface text; system resolves the macOS font."
+      },
+      "action": {
+        "displayName": "Action",
+        "purpose": "Native readable interface text; system resolves the macOS font."
+      },
+      "metadata": {
+        "displayName": "Metadata",
+        "purpose": "Native readable interface text; system resolves the macOS font."
+      },
+      "badge": {
+        "displayName": "Badge",
+        "purpose": "Native readable interface text; system resolves the macOS font."
+      },
+      "confirmation": {
+        "displayName": "Confirmation",
+        "purpose": "Native readable interface text; system resolves the macOS font."
+      },
+      "code": {
+        "displayName": "Code",
+        "purpose": "Native monospaced technical content."
+      },
+      "diff": {
+        "displayName": "Diff",
+        "purpose": "Native monospaced technical content."
+      }
+    },
+    "shadows": [
+      {
+        "name": "expanded-shell",
+        "value": "SwiftUI .shadow(color: .black.opacity(0.24), radius: 12, y: 5)",
+        "purpose": "Expanded-only ambient depth; collapsed opacity is zero and AppKit hasShadow is false."
+      }
+    ],
+    "motion": [
+      {
+        "name": "panel-frame",
+        "value": "Expand 380 ms; contract 280 ms; CAMediaTimingFunction(controlPoints: 0.22, 1, 0.36, 1)",
+        "purpose": "AppKit solely owns window size; deceleration without overshoot. Immediate under Reduce Motion."
+      },
+      {
+        "name": "shell-interpolation",
+        "value": "SwiftUI timingCurve(0.22, 1, 0.36, 1); opening 380 ms, collapse 280 ms; bottom radius 10 → 18 pt within geometry bounds",
+        "purpose": "Continuous full-width shell silhouette at the unchanged screen-top anchor; disabled under Reduce Motion."
+      },
+      {
+        "name": "content-crossfade",
+        "value": "Insertion easeOut 180 ms after 40 ms delay; removal easeOut 100 ms; phase change easeOut 180 ms",
+        "purpose": "Destination-sized content is revealed through the resizing shell without intermediate-width reflow. Identity transition and disabled animation transaction under Reduce Motion."
+      },
+      {
+        "name": "hover-peek",
+        "value": "100 ms",
+        "purpose": "Pointer-entry hysteresis."
+      },
+      {
+        "name": "hover-collapse",
+        "value": "320 ms",
+        "purpose": "Eligible pointer-exit hysteresis."
+      },
+      {
+        "name": "demo-feedback",
+        "value": "1.4 s",
+        "purpose": "Temporary interaction receipt; not task completion."
+      },
+      {
+        "name": "completion-transient",
+        "value": "3.2 s",
+        "purpose": "Completion is consumed once per turn."
+      },
+      {
+        "name": "failure-transient",
+        "value": "5 s",
+        "purpose": "Distinct failure state."
+      },
+      {
+        "name": "nudgie-completion-hop",
+        "value": "−6 pt; spring(response: 0.22, dampingFraction: 0.48); return after 290 ms with spring(response: 0.24, dampingFraction: 0.72)",
+        "purpose": "Event-driven original mascot motion; skipped under Reduce Motion."
+      }
+    ],
+    "nativeGeometry": {
+      "notchedAnchor": "screenFrame.maxY for every mode",
+      "standardAnchor": "visibleFrame.maxY − 6 pt",
+      "compactNotched": "(cutout width + 84) × (cutout height + 2) pt",
+      "compactReference": "180 × 32 pt cutout → 264 × 34 pt panel",
+      "cameraBand": "Blank cutout-height band before non-collapsed content",
+      "peek": "max(compactWidth, 380) × (cutoutHeight + 132) pt",
+      "expanded": "max(compactWidth, 380) × (cutoutHeight + 160) pt",
+      "permission": "max(compactWidth, 380) × (cutoutHeight + 224) pt",
+      "question": "max(compactWidth, 340) × (cutoutHeight + 192) pt",
+      "confirmation": "max(compactWidth, 260) × (cutoutHeight + 46) pt",
+      "standard": "Same content heights without camera band; compact 200 × 38 pt",
+      "widthClamp": "2 × min(anchorX − screen.minX, screen.maxX − anchorX) − 24 pt",
+      "heightClamp": "screen.height − 32 pt",
+      "shape": "Full-width screen-edge shell; no stepped neck; shoulder bounded by 12 pt, width/4 and height/4."
+    },
+    "nativeInteraction": {
+      "focus": "RoundedRectangle stroke white.opacity(0.75), lineWidth 1 pt",
+      "disabled": "opacity 0.45",
+      "hostAction": "Selected-host app activation only; exact session/tab routing unverified.",
+      "attention": "Demo actions; no response sent to Codex.",
+      "sleepWake": "Cancel timers on sleep; reconstruct current state without transient replay.",
+      "windowSizing": "AppKit sole window-size owner; NSHostingView.sizingOptions = []; NSPanel.animationBehavior = .none; SwiftUI content uses fixed destination size."
+    },
+    "previewLimitations": [
+      "HTML/CSS component samples are documentation-only illustrations, not shipped macOS UI.",
+      "No CSS sample demonstrates NSPanel geometry, safe areas, native font rendering, keyboard routing, VoiceOver, host launch, or Spaces.",
+      "Synthesized OKLCH ramps are preview metadata, not extracted normative tokens."
+    ],
+    "verification": {
+      "disposition": "ship for source/static review",
+      "renderCount": 14,
+      "renderPattern": ".impeccable/review/{notch,standard}-{monitor,approval,question,minimized,confirmation,error-peek,error-expanded}.png",
+      "pendingDeveloperQA": [
+        "Physical notch and fallback display",
+        "NSPanel hover and focus",
+        "Menu-bar access and camera exclusion",
+        "Spaces/full-screen",
+        "Selected-host runtime activation",
+        "Reduce Motion/accessibility on macOS",
+        "Native animation smoothness, rapid reversals, and keyboard focus during transitions"
+      ],
+      "motionReview": "Fourteen fresh endpoint PNGs and current source checked independently; no static regressions or material source blockers. Endpoint images do not verify temporal smoothness."
+    },
+    "motionStatus": "Implemented values extracted from final source. Independent source/static endpoint review found no static regressions or material source blockers; native runtime smoothness, rapid reversal, and keyboard focus remain developer QA."
+  },
+  "components": [
+    {
+      "name": "Neutral permission action",
+      "kind": "button",
+      "refersTo": "button-neutral",
+      "description": "Documentation-only HTML/CSS approximation of the native SwiftUI tone; CSS px illustrate logical point spacing and are not macOS rendering or behavior evidence.",
+      "html": "<div class=\"ds-canvas\"><button class=\"ds-neutral\">Deny</button></div>",
+      "css": ".ds-canvas{background:black;padding:16px;}.ds-neutral{font-family:system-ui,sans-serif;border:0;border-radius:8px;cursor:pointer;background:rgb(15% 15% 15%);color:rgba(255,255,255,.92);height:30px;font-size:12px;font-weight:500;padding:0 16px;}.ds-neutral:hover{background:rgb(22% 22% 22%);}.ds-neutral:active{background:rgb(22% 22% 22%);}.ds-neutral:focus-visible{outline:1px solid rgba(255,255,255,.75);outline-offset:0}.ds-neutral:disabled{opacity:.45;cursor:default;}"
+    },
+    {
+      "name": "Primary permission action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Documentation-only HTML/CSS approximation of the native SwiftUI tone; CSS px illustrate logical point spacing and are not macOS rendering or behavior evidence.",
+      "html": "<div class=\"ds-canvas\"><button class=\"ds-primary\">Allow once</button></div>",
+      "css": ".ds-canvas{background:black;padding:16px;}.ds-primary{font-family:system-ui,sans-serif;border:0;border-radius:8px;cursor:pointer;background:rgb(90% 90% 90%);color:black;height:30px;font-size:12px;font-weight:500;padding:0 16px;}.ds-primary:hover{background:white;}.ds-primary:active{background:rgb(72% 72% 72%);}.ds-primary:focus-visible{outline:1px solid rgba(255,255,255,.75);outline-offset:0}.ds-primary:disabled{opacity:.45;cursor:default;}"
+    },
+    {
+      "name": "Question choice",
+      "kind": "button",
+      "refersTo": "button-choice",
+      "description": "Documentation-only HTML/CSS approximation of the native SwiftUI tone; CSS px illustrate logical point spacing and are not macOS rendering or behavior evidence.",
+      "html": "<div class=\"ds-canvas\"><button class=\"ds-choice\">Use existing auth</button></div>",
+      "css": ".ds-canvas{background:black;padding:16px;}.ds-choice{font-family:system-ui,sans-serif;border:0;border-radius:8px;cursor:pointer;background:rgba(51,198.9,221.85,.12);color:rgba(255,255,255,.92);height:32px;font-size:13px;padding:0 10px;}.ds-choice:hover{background:rgba(51,198.9,221.85,.22);}.ds-choice:active{background:rgba(51,198.9,221.85,.22);}.ds-choice:focus-visible{outline:1px solid rgba(255,255,255,.75);outline-offset:0}.ds-choice:disabled{opacity:.45;cursor:default;}"
+    },
+    {
+      "name": "Context badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Documentation-only approximation of a noninteractive native label, not a selectable chip.",
+      "html": "<div class=\"ds-canvas\"><span class=\"ds-badge\">Demo</span></div>",
+      "css": ".ds-canvas{background:black;padding:16px}.ds-badge{display:inline-block;font:10px system-ui,sans-serif;color:rgb(60% 60% 60%);background:rgb(10% 10% 10%);border-radius:5px;padding:2px 7px;}"
+    },
+    {
+      "name": "Focused monitor row",
+      "kind": "custom",
+      "refersTo": "button-row",
+      "description": "Documentation-only approximation. Native source uses original Nudgie, SF Symbols, actual badges, and host activation; the sample is static and deliberately omits mascot/icon substitutes.",
+      "html": "<div class=\"ds-canvas\"><button class=\"ds-monitor\"><span class=\"ds-title\">Add authentication</span><span class=\"ds-detail\">Demo focused task</span><span class=\"ds-phase\">Working</span></button></div>",
+      "css": ".ds-canvas{background:black;padding:16px}.ds-monitor{font-family:system-ui,sans-serif;border:0;border-radius:8px;cursor:pointer;background:black;color:white;padding:5px 4px;display:flex;flex-direction:column;gap:5px;text-align:left;width:100%}.ds-title{font-size:14px;font-weight:500}.ds-detail{font-size:12px;color:rgb(60% 60% 60%)}.ds-phase{font-size:12px;color:rgb(22% 58% 100%)}.ds-monitor:hover,.ds-monitor:active{background:rgb(8% 8% 8%)}.ds-monitor:focus-visible{outline:1px solid rgba(255,255,255,.75);outline-offset:0}.ds-monitor:disabled{opacity:.45;cursor:default;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Quiet notch companion",
+    "overview": "Nudge is a quiet Mac companion: opaque black joins the physical camera housing, direct rows carry one focused task, and original Nudgie supplies restrained character. It stays black in both Light and Dark system appearance. Readable text uses native system typography; paths, filenames, code, and diffs use the system monospaced design.\n\nThis records the implemented M0 visual playground, derived from SwiftUI/AppKit sources and the user-confirmed screenshot direction. Approval, question, and feedback are explicitly Demo states. Native macOS is not represented by the installed web/iOS/Android presets; Apple frameworks and the project brief govern behavior. Measurements marked pt are native logical points, not CSS point conversions.",
+    "keyCharacteristics": [
+      "Opaque black in both system appearances.",
+      "One focused context, direct rows, compact controls.",
+      "Camera exclusion and one shared screen-edge anchor on notched displays.",
+      "Original Nudgie, state symbols, and restrained semantic accents.",
+      "Short event-driven motion with Reduce Motion support."
+    ],
+    "rules": [
+      {
+        "name": "Black Housing",
+        "body": "Keep the shell opaque black in both Light and Dark system appearance.",
+        "section": "colors"
+      },
+      {
+        "name": "Readable First",
+        "body": "Use native system typography for readable interface text; reserve the monospaced design for filenames, paths, code, and diffs.",
+        "section": "typography"
+      },
+      {
+        "name": "One Anchor",
+        "body": "Keep every notched mode attached to the same screen-top anchor, with a blank camera band before expanded content.",
+        "section": "layout"
+      },
+      {
+        "name": "Direct Rows",
+        "body": "Place monitor and attention content directly in the full-width black shell; do not reintroduce nested task cards or a stepped neck.",
+        "section": "layout"
+      }
+    ],
+    "dos": [
+      "Do keep the blank camera band and preserve the existing minimized geometry.",
+      "Do show Demo on synthetic monitor, permission, question, and confirmation content.",
+      "Do use text and symbols alongside semantic color.",
+      "Do keep host activation tied to the selected host and report launch failure in the monitor row.",
+      "Do preserve native keyboard shortcuts, focus treatment, VoiceOver labels, and Reduce Motion behavior.",
+      "Do verify physical NSPanel behavior, hover, focus, menu access, Spaces, and host activation manually on macOS."
+    ],
+    "donts": [
+      "Don't switch the shell to a light surface in Light appearance.",
+      "Don't move the expanded notched panel below the menu bar or add a narrow neck above its content.",
+      "Don't expand the focused surface into a provider fleet, quota dashboard, or session browser.",
+      "Don't represent demo permission actions or question choices as decisions sent to Codex.",
+      "Don't treat the short interaction receipt as task completion or promise exact session/tab routing.",
+      "Don't copy external mascot artwork or introduce a permanent idle animation."
+    ]
+  }
+}

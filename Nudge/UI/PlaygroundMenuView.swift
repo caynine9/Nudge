@@ -18,6 +18,23 @@ struct PlaygroundMenuView: View {
         }
         .keyboardShortcut("o")
 
+        Button("Monitor preview") {
+            appState.choose(.toolUse)
+            appState.showPanel()
+        }
+        Button("Approval preview") { appState.choose(.waitingPermission) }
+        Button("Question preview") { appState.choose(.waitingInput) }
+        Button("Minimized preview") {
+            appState.choose(.thinking)
+            appState.dispatch(.collapse)
+        }
+        Menu("Preview host") {
+            ForEach(CodexHost.allCases) { host in
+                Button(host.title) { appState.host = host }
+            }
+        }
+        Divider()
+
         Menu("Simulate phase") {
             ForEach(SessionPhase.allCases) { phase in
                 Button {

@@ -79,7 +79,6 @@ struct Nudgie: View {
             .offset(x: -1, y: pose.eyeOffset)
         }
         .frame(width: 31, height: 28)
-        .shadow(color: pose.bodyColor.opacity(0.22), radius: 6, y: 2)
         .offset(y: hop)
         .onChange(of: celebrationPulse) { _, pulse in
             guard pulse > 0, !reduceMotion else { return }

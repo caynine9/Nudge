@@ -4,201 +4,367 @@ struct NotchRootView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     let displayKind: DisplayKind
-    let contentTopInset: CGFloat
+    let notchWidth: CGFloat
+    let notchHeight: CGFloat
+    let compactWidth: CGFloat
+    var availableWidth: CGFloat = .infinity
+    var hoverChanged: ((Bool) -> Void)? = nil
 
     private var mode: NotchPresentation { appState.presentation.mode }
     private var phase: SessionPhase { appState.presentation.snapshot.phase }
     private var isNotched: Bool { displayKind == .notch }
+    private var targetSize: CGSize {
+        let preferred = NotchGeometry.preferredSize(kind: displayKind, compactWidth: compactWidth,
+                                                   notchHeight: notchHeight, mode: mode, phase: phase)
+        return CGSize(width: min(preferred.width, availableWidth), height: preferred.height)
+    }
+    private var reduceMotion: Bool { appState.reduceMotion || accessibilityReduceMotion }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-                .frame(height: 42)
-                .contentShape(Rectangle())
-                .onTapGesture { appState.dispatch(.togglePinned) }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(appState.presentation.snapshot.projectLabel), \(phase.title)")
-                .accessibilityHint("Activate to expand or collapse the Nudge playground")
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction { appState.dispatch(.togglePinned) }
-
-            if mode == .peek {
-                peekContent
-                    .padding(.top, 2)
-                    .transition(.opacity)
-            } else if mode == .expanded || mode == .attention {
-                expandedContent
-                    .padding(.top, 9)
-                    .transition(.opacity)
+        ZStack(alignment: .top) {
+            if mode == .collapsed {
+                Group {
+                    if isNotched { compactHeader }
+                    else { minimizedRow.padding(.horizontal, 12) }
+                }
+                .frame(width: targetSize.width, height: targetSize.height, alignment: .top)
+                .animation(nil, value: targetSize)
+                .transition(NotchMotion.contentTransition(reduceMotion: reduceMotion))
+            } else {
+                VStack(spacing: 0) {
+                    if isNotched { Color.clear.frame(height: notchHeight).accessibilityHidden(true) }
+                    ZStack(alignment: .top) {
+                        if mode == .confirmation, let feedback = appState.presentation.feedback {
+                            confirmation(feedback)
+                                .frame(maxWidth: .infinity).frame(height: 46)
+                                .transition(NotchMotion.contentTransition(reduceMotion: reduceMotion))
+                        } else {
+                            content
+                                .padding(.horizontal, isNotched ? 28 : 16)
+                                .padding(.top, 16).padding(.bottom, 14)
+                                .id(phase)
+                                .transition(NotchMotion.contentTransition(reduceMotion: reduceMotion))
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                // Lay out text at its destination width, then reveal it through the resizing shell.
+                // AppKit owns frame interpolation; intermediate window widths must not wrap the rows.
+                .frame(width: targetSize.width, height: targetSize.height, alignment: .top)
+                .animation(nil, value: targetSize)
+                .transition(NotchMotion.contentTransition(reduceMotion: reduceMotion))
             }
-
-            Spacer(minLength: 0)
         }
-        .padding(.horizontal, isNotched ? 21 : 18)
-        .padding(.top, contentTopInset)
-        .padding(.bottom, isNotched ? 12 : 7)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background {
-            shell
-        }
-        .overlay {
-            shell
-                .strokeBorder(.white.opacity(isNotched ? 0.075 : 0.11), lineWidth: 0.8)
-                .allowsHitTesting(false)
-        }
-        .shadow(color: .black.opacity(0.3), radius: 20, y: 8)
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .top)
+        .background { shell.fill(Color.black) }
+        .clipShape(shell)
+        .shadow(color: .black.opacity(mode == .collapsed ? 0 : 0.24), radius: 12, y: 5)
         .contentShape(shell)
-        .onHover { appState.dispatch(.pointerChanged($0)) }
+        .animation(reduceMotion ? nil : NotchMotion.shell(collapsing: mode == .collapsed), value: mode)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: phase)
+        .transaction { if reduceMotion { $0.animation = nil; $0.disablesAnimations = true } }
+        .environment(\.colorScheme, .dark)
+        .foregroundStyle(.white)
+        .onHover { inside in
+            if let hoverChanged { hoverChanged(inside) }
+            else { appState.dispatch(.pointerChanged(inside)) }
+        }
         .onChange(of: accessibilityReduceMotion) { _, value in appState.setReduceMotion(value) }
         .onAppear { appState.setReduceMotion(accessibilityReduceMotion) }
         .accessibilityIdentifier("nudge.notch-playground")
     }
 
-    private var shell: UnevenRoundedRectangle {
-        UnevenRoundedRectangle(
-            topLeadingRadius: isNotched ? 24 : 23,
-            bottomLeadingRadius: 25,
-            bottomTrailingRadius: 25,
-            topTrailingRadius: isNotched ? 24 : 23,
-            style: .continuous
-        )
+    private var shell: NotchShell {
+        NotchShell(attachedToScreenEdge: isNotched, compactWidth: compactWidth,
+                   neckHeight: notchHeight + 2, fullWidth: mode != .collapsed)
     }
 
-    private var header: some View {
-        HStack(spacing: 9) {
+    private var compactHeader: some View {
+        HStack(spacing: 0) {
             Image(systemName: phase.symbol)
-                .font(.system(size: 11, weight: .semibold))
+                .font(NotchType.readable(12, weight: .semibold))
                 .foregroundStyle(accent)
-                .frame(width: 16)
-
-            Text(appState.presentation.snapshot.projectLabel)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .lineLimit(1)
-                .foregroundStyle(.white.opacity(0.96))
-
-            Circle()
-                .fill(.white.opacity(0.2))
-                .frame(width: 3, height: 3)
-
-            Text(appState.presentation.snapshot.activityLabel)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .lineLimit(1)
-                .foregroundStyle(.white.opacity(0.68))
-
-            Spacer(minLength: 1)
-
-            Nudgie(
-                pose: MascotPose(phase: phase),
-                celebrationPulse: appState.celebrationPulse,
-                reduceMotion: appState.reduceMotion
-            )
-            .frame(width: 34, height: 32)
+                .frame(width: 30)
+            Color.clear.frame(width: notchWidth).accessibilityHidden(true)
+            mascot.scaleEffect(0.68).frame(width: 30, height: 24)
         }
-        .padding(.leading, isNotched ? 2 : 0)
-        .padding(.trailing, 1)
+        .frame(width: compactWidth, height: notchHeight + 2)
+        .contentShape(Rectangle())
+        .onTapGesture { appState.dispatch(.togglePinned) }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(PlaygroundScenario.taskTitle), \(phase.title), demo")
+        .accessibilityHint("Expand or collapse the focused session")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { appState.dispatch(.togglePinned) }
     }
 
-    private var peekContent: some View {
-        HStack(spacing: 9) {
-            RoundedRectangle(cornerRadius: 1)
-                .fill(accent)
-                .frame(width: 3, height: 24)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(phase == .toolUse ? "CURRENT ACTIVITY" : "CODEX PLAYGROUND")
-                    .font(.system(size: 8, weight: .bold, design: .rounded))
-                    .tracking(1.1)
-                    .foregroundStyle(.white.opacity(0.42))
-                Text(appState.presentation.snapshot.detail)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .lineLimit(1)
-                    .foregroundStyle(.white.opacity(0.84))
+    private var minimizedRow: some View {
+        Button { appState.dispatch(.togglePinned) } label: {
+            HStack(spacing: 10) {
+                mascot.scaleEffect(0.68).frame(width: 23, height: 24)
+                Text(PlaygroundScenario.taskTitle).font(NotchType.readable(12)).lineLimit(1)
+                Spacer(minLength: 0)
+                Image(systemName: phase.symbol).foregroundStyle(accent).font(NotchType.readable(10))
             }
-            Spacer(minLength: 0)
-            Image(systemName: "arrow.up.right")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.35))
+            .frame(height: 38)
         }
-        .padding(.horizontal, 4)
+        .buttonStyle(NotchButtonStyle(tone: .row))
+        .accessibilityLabel("\(PlaygroundScenario.taskTitle), \(phase.title), demo")
     }
 
-    private var expandedContent: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            HStack(alignment: .center, spacing: 8) {
-                Text(phase == .waitingPermission || phase == .waitingInput ? "NEEDS YOU" : "SIMULATED SESSION")
-                    .font(.system(size: 8, weight: .bold, design: .rounded))
-                    .tracking(1.25)
-                    .foregroundStyle(accent)
+    private var mascot: some View {
+        Nudgie(pose: MascotPose(phase: phase), celebrationPulse: appState.celebrationPulse, reduceMotion: appState.reduceMotion)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch phase {
+        case .waitingPermission: permission
+        case .waitingInput: question
+        default: monitor
+        }
+    }
+
+    private var monitor: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
                 Spacer()
-                Text("M0 PLAYGROUND")
-                    .font(.system(size: 8, weight: .semibold, design: .rounded))
-                    .tracking(0.8)
-                    .foregroundStyle(.white.opacity(0.34))
+                NotchBadge(title: "Demo")
             }
-
-            Text(appState.presentation.snapshot.detail)
-                .font(.system(size: 15, weight: .medium, design: .rounded))
-                .lineSpacing(2)
-                .foregroundStyle(.white.opacity(0.92))
-                .fixedSize(horizontal: false, vertical: true)
-                .lineLimit(2)
-
-            HStack(spacing: 7) {
-                Label(appState.presentation.snapshot.projectLabel, systemImage: "folder")
-                Text("·").foregroundStyle(.white.opacity(0.25))
-                Text("Turn \(appState.presentation.snapshot.turnID.split(separator: "-").last ?? "1")")
-            }
-            .font(.system(size: 9, weight: .medium, design: .rounded))
-            .foregroundStyle(.white.opacity(0.5))
-
-            if phase.isAttention {
-                Button {
-                    appState.choose(.thinking)
-                } label: {
-                    HStack(spacing: 7) {
-                        Text("Simulate progress")
-                        Image(systemName: "arrow.right")
-                            .font(.system(size: 9, weight: .semibold))
+            Button { appState.openFocusedHost() } label: {
+                HStack(alignment: .top, spacing: 12) {
+                    mascot.scaleEffect(0.72).frame(width: 25, height: 28)
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(PlaygroundScenario.taskTitle)
+                                .font(NotchType.readable(14, weight: .medium)).lineLimit(1)
+                                .foregroundStyle(.white)
+                            Spacer(minLength: 0)
+                            NotchBadge(title: "Codex")
+                            NotchBadge(title: appState.host.title)
+                        }
+                        if let issue = appState.navigationIssue {
+                            Text(issue).font(NotchType.readable(11))
+                                .foregroundStyle(NotchPalette.orange).lineLimit(2)
+                        } else {
+                            Text(PlaygroundScenario.prompt)
+                                .font(NotchType.readable(12)).foregroundStyle(NotchPalette.secondary).lineLimit(1)
+                            if phase == .toolUse {
+                                Text("Writing \(Text("middleware.ts").font(NotchType.code()))")
+                                    .font(NotchType.readable(12)).foregroundStyle(accent).lineLimit(1)
+                            } else {
+                                Label(phase.title, systemImage: phase.symbol)
+                                    .font(NotchType.readable(12)).foregroundStyle(accent)
+                            }
+                        }
                     }
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color(red: 0.13, green: 0.14, blue: 0.17))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(accent, in: Capsule())
                 }
-                .buttonStyle(.plain)
-                .accessibilityHint("Changes the simulated session back to working")
-            } else {
-                Text("Choose a phase from the Nudge menu bar icon to preview another state.")
-                    .font(.system(size: 9, weight: .regular, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.4))
-                    .lineLimit(2)
+                .padding(.vertical, 5)
+                .padding(.horizontal, 4)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(NotchButtonStyle(tone: .row))
+            .disabled(appState.isOpeningHost)
+            .accessibilityHint("Activate \(appState.host.title). This demo has no real session identity.")
+            if mode == .expanded {
+                Button { appState.openFocusedHost() } label: {
+                    HStack {
+                        Text(appState.isOpeningHost ? "Opening…" : "Open in \(appState.host.title)")
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                    }
+                    .font(NotchType.readable(11)).foregroundStyle(NotchPalette.secondary)
+                    .padding(.leading, 41)
+                    .padding(.vertical, 3)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(NotchButtonStyle(tone: .row))
+                .disabled(appState.isOpeningHost)
+                .accessibilityLabel("Open \(appState.host.title)")
+                .transition(NotchMotion.contentTransition(reduceMotion: reduceMotion))
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(
-            LinearGradient(
-                colors: [.white.opacity(0.075), .white.opacity(0.035)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: 17, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 17, style: .continuous)
-                .strokeBorder(.white.opacity(0.07), lineWidth: 0.7)
+    }
+
+    private var permission: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            attentionTitle("Permission request", symbol: "circle.fill", color: NotchPalette.orange, secondaryTitle: true)
+            HStack(spacing: 7) {
+                Image(systemName: "exclamationmark.triangle").foregroundStyle(NotchPalette.orange)
+                Text("Edit").foregroundStyle(NotchPalette.orange)
+                Text(PlaygroundScenario.filePath).foregroundStyle(.white.opacity(0.90)).lineLimit(1).truncationMode(.middle)
+            }
+            .font(NotchType.code())
+            VStack(spacing: 0) {
+                ForEach(PlaygroundScenario.diff) { line in
+                    HStack(spacing: 6) {
+                        Text(line.number).foregroundStyle(NotchPalette.muted).frame(width: 20, alignment: .trailing)
+                        Text(line.marker).frame(width: 10)
+                        Text(line.code).lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .font(NotchType.code(11))
+                    .foregroundStyle(diffColor(line.kind))
+                    .padding(.horizontal, 9)
+                    .frame(height: 15)
+                    .background {
+                        Rectangle().fill(diffColor(line.kind).opacity(line.kind == .context ? 0 : 0.08))
+                    }
+                }
+            }
+            .background(Color(white: 0.035), in: RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .accessibilityLabel("Demo diff: remove one verification call, add a missing-token check and return verification")
+            Text("+3 −1").font(NotchType.code(11)).foregroundStyle(NotchPalette.secondary)
+            HStack(spacing: 8) {
+                decisionButton("Deny", shortcut: "N", tone: .neutral) {
+                    appState.resolvePreview(.init(label: "Denied", kind: .denied))
+                }
+                .keyboardShortcut("n")
+                decisionButton("Allow once", shortcut: "Y", tone: .primary) {
+                    appState.resolvePreview(.init(label: "Allowed once", kind: .allowed))
+                }
+                .keyboardShortcut("y")
+            }
+            .padding(.top, 2)
         }
-        .padding(.horizontal, 1)
+    }
+
+    private var question: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            attentionTitle("Codex asks", symbol: "bubble.left.fill", color: NotchPalette.cyan)
+            Text(PlaygroundScenario.question).font(NotchType.readable(14, weight: .medium))
+            VStack(spacing: 5) {
+                ForEach(Array(PlaygroundScenario.options.enumerated()), id: \.offset) { index, option in
+                    Button { appState.resolvePreview(.init(label: option, kind: .selected)) } label: {
+                        HStack(spacing: 10) {
+                            Text("⌘\(index + 1)")
+                                .font(NotchType.readable(11, weight: .medium))
+                                .foregroundStyle(NotchPalette.cyan)
+                                .frame(width: 25, height: 24)
+                                .background(NotchPalette.cyan.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+                            Text(option).font(NotchType.readable(13)).foregroundStyle(.white.opacity(0.92))
+                            Spacer()
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(height: 32)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(NotchButtonStyle(tone: .choice))
+                    .keyboardShortcut(KeyEquivalent(Character(String(index + 1))))
+                    .accessibilityHint("Simulate selecting \(option). No answer is sent to Codex.")
+                }
+            }
+        }
+    }
+
+    private func attentionTitle(_ title: String, symbol: String, color: Color, secondaryTitle: Bool = false) -> some View {
+        HStack(spacing: 7) {
+            Image(systemName: symbol).foregroundStyle(color)
+                .font(NotchType.readable(secondaryTitle ? 7 : 12))
+            Text(title).foregroundStyle(secondaryTitle ? NotchPalette.secondary : color)
+            Spacer()
+            NotchBadge(title: "Demo")
+        }
+        .font(NotchType.readable(12, weight: secondaryTitle ? .regular : .medium))
+    }
+
+    private func decisionButton(_ title: String, shortcut: String, tone: NotchButtonStyle.Tone,
+                                action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Text(title).font(NotchType.readable(12, weight: .medium))
+                Text("⌘\(shortcut)").font(NotchType.readable(10)).opacity(0.55)
+            }
+            .foregroundStyle(tone == .primary ? Color.black : Color.white.opacity(0.92))
+            .frame(maxWidth: .infinity)
+            .frame(height: 30)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(NotchButtonStyle(tone: tone))
+        .accessibilityHint("Simulated preview only. No permission decision is sent to Codex.")
+    }
+
+    private func confirmation(_ feedback: InteractionFeedback) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: feedback.kind == .denied ? "xmark" : "checkmark")
+            Text(feedback.label)
+        }
+        .font(NotchType.readable(15, weight: .medium))
+        .foregroundStyle(feedback.kind == .denied ? NotchPalette.orange : NotchPalette.green)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Demo: \(feedback.label)")
+    }
+
+    private func diffColor(_ kind: PlaygroundScenario.DiffLine.Kind) -> Color {
+        switch kind {
+        case .context: NotchPalette.secondary
+        case .removed: NotchPalette.red
+        case .added: NotchPalette.green
+        }
     }
 
     private var accent: Color {
         switch phase {
-        case .waitingPermission, .waitingInput: Color(red: 1, green: 0.71, blue: 0.36)
-        case .completed: Color(red: 0.44, green: 0.88, blue: 0.68)
-        case .failed: Color(red: 1, green: 0.47, blue: 0.46)
-        case .interrupted: Color(red: 0.69, green: 0.72, blue: 0.79)
-        default: Color(red: 0.48, green: 0.79, blue: 1)
+        case .waitingPermission: NotchPalette.orange
+        case .waitingInput: NotchPalette.cyan
+        case .completed: NotchPalette.green
+        case .failed: NotchPalette.red
+        case .interrupted, .ended, .idle, .discovered: NotchPalette.secondary
+        default: NotchPalette.blue
         }
+    }
+}
+
+struct NotchShell: Shape {
+    let attachedToScreenEdge: Bool
+    let compactWidth: CGFloat
+    let neckHeight: CGFloat
+    var expansion: CGFloat
+
+    init(attachedToScreenEdge: Bool, compactWidth: CGFloat, neckHeight: CGFloat, fullWidth: Bool = false) {
+        self.attachedToScreenEdge = attachedToScreenEdge
+        self.compactWidth = compactWidth
+        self.neckHeight = neckHeight
+        expansion = fullWidth ? 1 : 0
+    }
+
+    var animatableData: CGFloat {
+        get { expansion }
+        set { expansion = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        guard attachedToScreenEdge else {
+            return RoundedRectangle(cornerRadius: 18, style: .continuous).path(in: rect)
+        }
+        // Both states share the screen-edge anchor; expanded has a full-width top without a stepped neck.
+        let width = rect.width
+        let headLeft = rect.midX - width / 2
+        let headRight = rect.midX + width / 2
+        let shoulder = min(12, min(width / 4, rect.height / 4))
+        let left = headLeft + shoulder
+        let right = headRight - shoulder
+        let top = rect.minY
+        let bottom = rect.maxY
+        let radius = min(10 + 8 * min(1, max(0, expansion)),
+                         min((right - left) / 2, (rect.height - shoulder) / 2))
+        let curve: CGFloat = 0.55228475
+        var path = Path()
+        path.move(to: CGPoint(x: headLeft, y: top))
+        path.addLine(to: CGPoint(x: headRight, y: top))
+        path.addCurve(to: CGPoint(x: right, y: top + shoulder),
+                      control1: CGPoint(x: right + shoulder * (1 - curve), y: top),
+                      control2: CGPoint(x: right, y: top + shoulder * (1 - curve)))
+        path.addLine(to: CGPoint(x: right, y: bottom - radius))
+        path.addQuadCurve(to: CGPoint(x: right - radius, y: bottom), control: CGPoint(x: right, y: bottom))
+        path.addLine(to: CGPoint(x: left + radius, y: bottom))
+        path.addQuadCurve(to: CGPoint(x: left, y: bottom - radius), control: CGPoint(x: left, y: bottom))
+        path.addLine(to: CGPoint(x: left, y: top + shoulder))
+        path.addCurve(to: CGPoint(x: headLeft, y: top),
+                      control1: CGPoint(x: left, y: top + shoulder * (1 - curve)),
+                      control2: CGPoint(x: left - shoulder * (1 - curve), y: top))
+        path.closeSubpath()
+        return path
     }
 }

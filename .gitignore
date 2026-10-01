@@ -3,3 +3,15 @@ DerivedData/
 build/
 *.xcuserstate
 xcuserdata/
+
+# Impeccable local renders and runtime output; shared surface/design records stay tracked.
+.impeccable/review/
+.impeccable/questions/
+.impeccable/config.local.json
+.impeccable/hook.cache.json
+.impeccable/hook.pending.json
+.impeccable/*.png
+.impeccable/live/server.json
+.impeccable/live/sessions/
+.impeccable/live/previews/
+.impeccable/live/cache/

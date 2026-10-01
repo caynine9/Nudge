@@ -55,7 +55,7 @@ final class NudgeAppDelegate: NSObject, NSApplicationDelegate {
         visibilitySubscription?.cancel()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         [sleepObserver, wakeObserver].compactMap { $0 }.forEach { workspaceCenter.removeObserver($0) }
-        panelController?.hide()
+        panelController?.shutdown()
         panelController = nil
     }
 }

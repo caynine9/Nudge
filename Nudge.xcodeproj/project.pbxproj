@@ -1,0 +1,168 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* NudgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* NudgeApp.swift */; };
+		A10000000000000000000002 /* NudgeAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* NudgeAppDelegate.swift */; };
+		A10000000000000000000003 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* AppState.swift */; };
+		A10000000000000000000004 /* NudgeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* NudgeModels.swift */; };
+		A10000000000000000000005 /* PresentationReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* PresentationReducer.swift */; };
+		A10000000000000000000006 /* NotchGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* NotchGeometry.swift */; };
+		A10000000000000000000007 /* NotchPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* NotchPanelController.swift */; };
+		A10000000000000000000008 /* NotchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* NotchRootView.swift */; };
+		A10000000000000000000009 /* Nudgie.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* Nudgie.swift */; };
+		A1000000000000000000000A /* PlaygroundMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* PlaygroundMenuView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B10000000000000000000001 /* NudgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NudgeApp.swift; sourceTree = "<group>"; };
+		B10000000000000000000002 /* NudgeAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NudgeAppDelegate.swift; sourceTree = "<group>"; };
+		B10000000000000000000003 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		B10000000000000000000004 /* NudgeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NudgeModels.swift; sourceTree = "<group>"; };
+		B10000000000000000000005 /* PresentationReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresentationReducer.swift; sourceTree = "<group>"; };
+		B10000000000000000000006 /* NotchGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchGeometry.swift; sourceTree = "<group>"; };
+		B10000000000000000000007 /* NotchPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchPanelController.swift; sourceTree = "<group>"; };
+		B10000000000000000000008 /* NotchRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchRootView.swift; sourceTree = "<group>"; };
+		B10000000000000000000009 /* Nudgie.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nudgie.swift; sourceTree = "<group>"; };
+		B1000000000000000000000A /* PlaygroundMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaygroundMenuView.swift; sourceTree = "<group>"; };
+		B1000000000000000000000B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B1000000000000000000000C /* Nudge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Nudge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C10000000000000000000001 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D10000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				D10000000000000000000002 /* Nudge */,
+				D10000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D10000000000000000000002 /* Nudge */ = {
+			isa = PBXGroup;
+			children = (
+				D10000000000000000000004 /* App */,
+				D10000000000000000000005 /* Core */,
+				D10000000000000000000006 /* UI */,
+				D10000000000000000000007 /* Support */,
+			);
+			path = Nudge;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000003 /* Products */ = {isa = PBXGroup; children = (B1000000000000000000000C /* Nudge.app */, ); name = Products; sourceTree = "<group>"; };
+		D10000000000000000000004 /* App */ = {isa = PBXGroup; children = (B10000000000000000000001, B10000000000000000000002, B10000000000000000000003, ); path = App; sourceTree = "<group>"; };
+		D10000000000000000000005 /* Core */ = {isa = PBXGroup; children = (B10000000000000000000004, B10000000000000000000005, ); path = Core; sourceTree = "<group>"; };
+		D10000000000000000000006 /* UI */ = {isa = PBXGroup; children = (B10000000000000000000006, B10000000000000000000007, B10000000000000000000008, B10000000000000000000009, B1000000000000000000000A, ); path = UI; sourceTree = "<group>"; };
+		D10000000000000000000007 /* Support */ = {isa = PBXGroup; children = (B1000000000000000000000B, ); path = Support; sourceTree = "<group>"; };
+		E10000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
+			A10000000000000000000001 /* NudgeApp.swift in Sources */,
+			A10000000000000000000002 /* NudgeAppDelegate.swift in Sources */,
+			A10000000000000000000003 /* AppState.swift in Sources */,
+			A10000000000000000000004 /* NudgeModels.swift in Sources */,
+			A10000000000000000000005 /* PresentationReducer.swift in Sources */,
+			A10000000000000000000006 /* NotchGeometry.swift in Sources */,
+			A10000000000000000000007 /* NotchPanelController.swift in Sources */,
+			A10000000000000000000008 /* NotchRootView.swift in Sources */,
+			A10000000000000000000009 /* Nudgie.swift in Sources */,
+			A1000000000000000000000A /* PlaygroundMenuView.swift in Sources */,
+		); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		F10000000000000000000001 /* Nudge */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F10000000000000000000003 /* Build configuration list for PBXNativeTarget "Nudge" */;
+			buildPhases = (E10000000000000000000001 /* Sources */, C10000000000000000000001 /* Frameworks */, F10000000000000000000002 /* Resources */, );
+			buildRules = ();
+			dependencies = ();
+			name = Nudge;
+			productName = Nudge;
+			productReference = B1000000000000000000000C /* Nudge.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F10000000000000000000004 /* Project object */ = {
+			isa = PBXProject;
+			attributes = { BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 2700; LastUpgradeCheck = 2700; TargetAttributes = { F10000000000000000000001 = { CreatedOnToolsVersion = 27.0; }; }; };
+			buildConfigurationList = F10000000000000000000005 /* Build configuration list for PBXProject "Nudge" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base, );
+			mainGroup = D10000000000000000000001;
+			productRefGroup = D10000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (F10000000000000000000001 /* Nudge */, );
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F10000000000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F10000000000000000000010 /* Debug project */ = {isa = XCBuildConfiguration; buildSettings = {
+			CLANG_ENABLE_MODULES = YES;
+			CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+			MACOSX_DEPLOYMENT_TARGET = 15.0;
+			SDKROOT = macosx;
+			SWIFT_VERSION = 6.0;
+			SWIFT_STRICT_CONCURRENCY = complete;
+		}; name = Debug; };
+		F10000000000000000000011 /* Release project */ = {isa = XCBuildConfiguration; buildSettings = {
+			CLANG_ENABLE_MODULES = YES;
+			CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+			MACOSX_DEPLOYMENT_TARGET = 15.0;
+			SDKROOT = macosx;
+			SWIFT_VERSION = 6.0;
+			SWIFT_STRICT_CONCURRENCY = complete;
+		}; name = Release; };
+		F10000000000000000000012 /* Debug Nudge */ = {isa = XCBuildConfiguration; buildSettings = {
+			CODE_SIGN_IDENTITY = "-";
+			CODE_SIGN_STYLE = Manual;
+			ENABLE_APP_SANDBOX = NO;
+			GENERATE_INFOPLIST_FILE = NO;
+			INFOPLIST_FILE = Nudge/Support/Info.plist;
+			LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks", );
+			MACOSX_DEPLOYMENT_TARGET = 15.0;
+			PRODUCT_BUNDLE_IDENTIFIER = com.nudge.companion;
+			PRODUCT_NAME = Nudge;
+			SUPPORTED_PLATFORMS = macosx;
+			SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+			SWIFT_EMIT_LOC_STRINGS = YES;
+			SWIFT_VERSION = 6.0;
+		}; name = Debug; };
+		F10000000000000000000013 /* Release Nudge */ = {isa = XCBuildConfiguration; buildSettings = {
+			CODE_SIGN_IDENTITY = "-";
+			CODE_SIGN_STYLE = Manual;
+			ENABLE_APP_SANDBOX = NO;
+			GENERATE_INFOPLIST_FILE = NO;
+			INFOPLIST_FILE = Nudge/Support/Info.plist;
+			LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks", );
+			MACOSX_DEPLOYMENT_TARGET = 15.0;
+			PRODUCT_BUNDLE_IDENTIFIER = com.nudge.companion;
+			PRODUCT_NAME = Nudge;
+			SUPPORTED_PLATFORMS = macosx;
+			SWIFT_VERSION = 6.0;
+		}; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F10000000000000000000005 /* Build configuration list for PBXProject "Nudge" */ = {isa = XCConfigurationList; buildConfigurations = (F10000000000000000000010, F10000000000000000000011, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		F10000000000000000000003 /* Build configuration list for PBXNativeTarget "Nudge" */ = {isa = XCConfigurationList; buildConfigurations = (F10000000000000000000012, F10000000000000000000013, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+
+	};
+	rootObject = F10000000000000000000004 /* Project object */;
+}

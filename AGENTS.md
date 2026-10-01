@@ -166,7 +166,7 @@ Jangan melaporkan build/test berhasil sebelum benar-benar dijalankan. Jika Xcode
 18. **Transcript parsing hanya fallback.** Kegagalan pemulihan assistant preview tidak boleh mematikan session detection atau status inti. Jangan menjalankan shell command dari received payload/text.
 19. **Mascot dan aset harus original.** Jangan copy code/artwork GPL Code Island ke proyek ini. Gunakan referensi sebagai behavioral research. Jika komponen Apache-2.0 dipakai, dokumentasikan provenance dan penuhi license obligations.
 20. **Tambahkan meaningful tests pada boundary kritis.** Prioritaskan reducer, dedupe, installer/config preservation, socket validation, dan timeout/failure behavior. Visual polish diperiksa manual; jangan membuat tests yang hanya menyalin implementation.
-21. **Commit message wajib Bahasa Inggris.** Percakapan dan komentar boleh Bahasa Indonesia. Commit harus singkat, deskriptif, dan sesuai scope perubahan; jangan memasukkan perubahan pengguna yang tidak terkait.
+21. **Commit message wajib Bahasa Inggris dan mengikuti Conventional Commits.** Gunakan format `<type>(<scope>): <description>` dengan scope opsional, misalnya `feat(ui): add demo usage limits` atau `docs: require conventional commit messages`. Pilih type sesuai perubahan, seperti `feat`, `fix`, `docs`, `refactor`, `test`, atau `chore`. Percakapan dan komentar boleh Bahasa Indonesia. Commit harus singkat, deskriptif, dan sesuai scope perubahan; jangan memasukkan perubahan pengguna yang tidak terkait.
 
 ## Model Domain Minimum
 

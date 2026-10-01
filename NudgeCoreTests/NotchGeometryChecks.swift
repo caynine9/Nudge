@@ -61,6 +61,30 @@ struct NotchGeometryChecks {
         let question = geometry.size(for: .attention, phase: .waitingInput)
         precondition(question.width < approval.width && question.height < approval.height)
         precondition(geometry.size(for: .collapsed, phase: .waitingInput) == geometry.size(for: .collapsed))
+        // A stable hosting canvas encloses every endpoint; its transparent remainder
+        // must never be used as the interactive frame, including mid-transition.
+        for display in [geometry, fallback] {
+            let canvas = display.canvasFrame
+            let compact = display.frame(for: .collapsed)
+            precondition(canvas.midX == compact.midX && canvas.maxY == compact.maxY)
+            for mode in NotchPresentation.allCases {
+                for phase in [SessionPhase.waitingPermission, .waitingInput, .thinking] {
+                    let target = display.frame(for: mode, phase: phase)
+                    precondition(canvas.contains(target), "Every state must fit the fixed canvas")
+                    for fraction in [CGFloat(0), 0.15, 0.5, 0.85, 1] {
+                        let size = CGSize(width: compact.width + (target.width - compact.width) * fraction,
+                                          height: compact.height + (target.height - compact.height) * fraction)
+                        let visible = display.frame(forVisibleSize: size)
+                        precondition(visible.midX == compact.midX && visible.maxY == compact.maxY)
+                        precondition(display.containsInteractionPoint(CGPoint(x: visible.midX, y: visible.midY),
+                                                                      panelFrame: visible))
+                        let belowShell = CGPoint(x: canvas.midX, y: visible.minY - 1)
+                        precondition(!display.containsInteractionPoint(belowShell, panelFrame: visible),
+                                     "Invisible canvas must pass pointer events through while opening or closing")
+                    }
+                }
+            }
+        }
         print("Notch geometry and shell fixture checks passed")
     }
 }

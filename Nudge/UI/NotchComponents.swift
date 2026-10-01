@@ -1,19 +1,16 @@
 import SwiftUI
 
 enum NotchMotion {
-    static let expandDuration = 0.38
-    static let collapseDuration = 0.28
+    // One retargetable spring drives size, contour and reveal. Critical damping avoids
+    // overshooting the camera anchor while preserving velocity when direction changes.
     static func shell(collapsing: Bool) -> Animation {
-        .timingCurve(0.22, 1, 0.36, 1, duration: collapsing ? collapseDuration : expandDuration)
+        .spring(response: collapsing ? 0.34 : 0.42, dampingFraction: 1, blendDuration: 0)
     }
 
     static func contentTransition(reduceMotion: Bool) -> AnyTransition {
-        guard !reduceMotion else { return .identity }
-        return .asymmetric(
-            insertion: .opacity.animation(.easeOut(duration: 0.18).delay(0.04)),
-            removal: .opacity.animation(.easeOut(duration: 0.10))
-        )
+        reduceMotion ? .identity : .opacity
     }
+
 }
 
 enum NotchPalette {

@@ -82,8 +82,22 @@ struct NotchGeometry: Equatable {
         return desired
     }
 
+    // The native window is a stable canvas; only the SwiftUI shell changes size.
+    var canvasSize: CGSize {
+        let sizes = NotchPresentation.allCases.flatMap { mode in
+            [size(for: mode, phase: .waitingPermission), size(for: mode, phase: .waitingInput)]
+        }
+        return CGSize(width: sizes.map(\.width).max() ?? 0,
+                      height: sizes.map(\.height).max() ?? 0)
+    }
+
+    var canvasFrame: CGRect { frame(forVisibleSize: canvasSize) }
+
     func frame(for mode: NotchPresentation, phase: SessionPhase = .thinking) -> CGRect {
-        let size = size(for: mode, phase: phase)
+        frame(forVisibleSize: size(for: mode, phase: phase))
+    }
+
+    func frame(forVisibleSize size: CGSize) -> CGRect {
         // The non-notch fallback lives below the menu bar rather than covering its items.
         let anchorY: CGFloat
         if kind == .notch {

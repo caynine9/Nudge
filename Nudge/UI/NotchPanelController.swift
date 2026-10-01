@@ -1,6 +1,4 @@
 import AppKit
-import Combine
-import QuartzCore
 import SwiftUI
 
 @MainActor
@@ -17,15 +15,10 @@ private final class NudgePanel: NSPanel {
 final class NotchPanelController {
     private let appState: AppState
     private let panel: NudgePanel
-    private var stateSubscription: AnyCancellable?
-    private var motionSubscription: AnyCancellable?
     private var localPointerMonitor: Any?
     private var globalPointerMonitor: Any?
-    private struct Layout: Equatable {
-        let mode: NotchPresentation
-        let phase: SessionPhase
-    }
-    private var currentLayout: Layout?
+    private var visibleSize: CGSize = .zero
+    private var hostingGeneration = 0
     private var screenID: CGDirectDisplayID?
     private var currentGeometry: NotchGeometry?
 
@@ -46,17 +39,7 @@ final class NotchPanelController {
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = false
         panel.animationBehavior = .none
-
-        stateSubscription = appState.$presentation
-            .map { Layout(mode: $0.mode, phase: $0.snapshot.phase) }
-            .removeDuplicates()
-            .sink { [weak self] layout in self?.setLayout(layout) }
-        motionSubscription = appState.$reduceMotion
-            .removeDuplicates()
-            .dropFirst()
-            .sink { [weak self] enabled in
-                if enabled { self?.refreshScreen(animated: false) }
-            }
+        panel.acceptsMouseMovedEvents = true
 
         refreshScreen(animated: false)
         localPointerMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
@@ -71,6 +54,7 @@ final class NotchPanelController {
     func show() {
         guard !appState.presentation.isSleeping else { return }
         panel.orderFrontRegardless()
+        reconcilePointer()
     }
 
     func hide() {
@@ -79,8 +63,6 @@ final class NotchPanelController {
 
     func shutdown() {
         hide()
-        stateSubscription?.cancel()
-        motionSubscription?.cancel()
         if let localPointerMonitor { NSEvent.removeMonitor(localPointerMonitor) }
         if let globalPointerMonitor { NSEvent.removeMonitor(globalPointerMonitor) }
         localPointerMonitor = nil
@@ -93,7 +75,7 @@ final class NotchPanelController {
 
     func wake() {
         refreshScreen(animated: false)
-        if appState.wantsPanelVisible { panel.orderFrontRegardless() }
+        if appState.wantsPanelVisible { show() }
     }
 
     func refreshScreen(animated: Bool = true) {
@@ -105,23 +87,42 @@ final class NotchPanelController {
         screenID = newScreenID
 
         let geometry = NotchGeometry(screen: screen)
+        let rebuild = panel.contentView == nil || screenChanged || currentGeometry != geometry || !animated
+        if rebuild {
+            hostingGeneration += 1
+            visibleSize = geometry.size(for: appState.presentation.mode, phase: appState.presentation.snapshot.phase)
+        }
+        currentGeometry = geometry
+        let generation = hostingGeneration
+        if panel.frame != geometry.canvasFrame { panel.setFrame(geometry.canvasFrame, display: true) }
         let root = NotchRootView(
             displayKind: geometry.kind,
             notchWidth: geometry.notchWidth,
             notchHeight: geometry.notchHeight,
             compactWidth: geometry.compactWidth,
-            availableWidth: geometry.availableWidth,
-            hoverChanged: { [weak self] _ in self?.reconcilePointer() }
+            availableWidth: geometry.canvasSize.width,
+            availableHeight: geometry.canvasSize.height,
+            visibleSizeChanged: { [weak self] size in
+                guard let self, self.hostingGeneration == generation else { return }
+                self.visibleSize = size
+                // Geometry callbacks can run during a SwiftUI update. Reconcile semantic
+                // hover on the next main-actor turn rather than publishing inside layout.
+                Task { @MainActor [weak self] in
+                    guard let self, self.hostingGeneration == generation else { return }
+                    self.reconcilePointer()
+                }
+            },
+            hoverChanged: { [weak self] _ in
+                Task { @MainActor [weak self] in self?.reconcilePointer() }
+            }
         ).environmentObject(appState)
-        if panel.contentView == nil || screenChanged || currentGeometry != geometry {
+        if rebuild {
             let hostingView = NSHostingView(rootView: root)
-            // Window geometry owns resize; intrinsic content constraints must not fight the animation.
+            // The window is a stable canvas; SwiftUI alone animates the visible shell.
             hostingView.sizingOptions = []
             panel.contentView = hostingView
         }
-        currentGeometry = geometry
-        currentLayout = Layout(mode: appState.presentation.mode, phase: appState.presentation.snapshot.phase)
-        place(geometry.frame(for: appState.presentation.mode, phase: appState.presentation.snapshot.phase), animated: animated && !screenChanged)
+        reconcilePointer()
     }
 
     private var preferredScreen: NSScreen? {
@@ -138,31 +139,14 @@ final class NotchPanelController {
         return NSScreen.main ?? screens.first
     }
 
-    private func setLayout(_ layout: Layout) {
-        guard layout != currentLayout, let screen = preferredScreen else { return }
-        currentLayout = layout
-        place(NotchGeometry(screen: screen).frame(for: layout.mode, phase: layout.phase), animated: true)
-    }
-
     private func reconcilePointer() {
         guard panel.isVisible, !appState.presentation.isSleeping, let geometry = currentGeometry else { return }
-        let inside = geometry.containsInteractionPoint(NSEvent.mouseLocation, panelFrame: panel.frame)
+        let frame = geometry.frame(forVisibleSize: visibleSize)
+        let inside = geometry.containsInteractionPoint(NSEvent.mouseLocation, panelFrame: frame)
+        // Transparent canvas must not swallow clicks meant for menu items or other apps.
+        panel.ignoresMouseEvents = !inside
         guard inside != appState.presentation.pointerInside else { return }
         appState.dispatch(.pointerChanged(inside))
     }
 
-    private func place(_ frame: CGRect, animated: Bool) {
-        guard panel.frame != frame else { return }
-        if animated && !appState.reduceMotion {
-            let shrinking = frame.width <= panel.frame.width && frame.height <= panel.frame.height
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = shrinking ? NotchMotion.collapseDuration : NotchMotion.expandDuration
-                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.22, 1, 0.36, 1)
-                context.allowsImplicitAnimation = true
-                panel.animator().setFrame(frame, display: true)
-            }
-        } else {
-            panel.setFrame(frame, display: true)
-        }
-    }
 }

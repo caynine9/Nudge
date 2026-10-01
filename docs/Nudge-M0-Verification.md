@@ -78,3 +78,43 @@ Independent Impeccable finish review: **ship** for current source and all 14 sta
 ## Handoff
 
 M0 should remain open until the developer records the visual/window results above and the reducer/geometry automated test target is added and run. Correct any issues found here within M0, then stop and wait for the next phase instruction.
+
+## Continuous motion correction — 2026-10-01
+
+This supersedes the earlier AppKit resize approach described above and in the existing design snapshot. Work remains within M0; no Codex configuration or integration was changed.
+
+- AppKit now positions a stable, screen-bounded transparent canvas. SwiftUI alone interpolates shell dimensions, contour and reveal with a critically damped spring (0.42 s response opening, 0.34 s closing). These are spring response values, not measured transition durations.
+- A geometry group resolves changing bounds together before the shell, content and geometry observer receive them. Pointer routing uses visible bounds, not the larger native window. Geometry callbacks from a replaced hosting view are rejected.
+- Compact and open layers retain their identity; open text keeps its last layout during contraction. Monitor content survives thinking/tool/completion changes. The confirmation receipt stays in place as it fades closed. Hidden content is disabled and excluded from accessibility.
+- Reduce Motion and sleep replace the animation subtree at the current target. Wake/display changes rebuild the hosting view without replaying a previous shell transition. No repeating animation timer was added.
+
+Validation for this correction: Debug build and standalone reducer/geometry fixtures passed. Extended geometry checks cover all presentation endpoints, notch/fallback canvas containment, negative display origins, intermediate-size top anchoring and rejection of pointer positions below the visible shell. Twelve new offscreen static endpoints (minimized, monitor, permission, question, confirmation and navigation failure for notch/fallback) were inspected with no content clipping found. These are source/static checks, not native interaction or frame-rate evidence. No shared Xcode test target exists; no `xcodebuild test` pass is claimed.
+
+Verifikasi manual oleh developer (pending):
+
+1. Run the new Debug build. Repeatedly hover in/out, pin open and press Escape; reverse direction before the shell has settled. Confirm no jump, text squeeze, blank flash or sudden restart.
+2. Cycle working → permission → question → confirmation → minimized, then completed/failed/interrupted. Confirm the shell stays attached to the same notch anchor, receipts fade out in place and completion does not replay.
+3. With minimized and during contraction, click menu items and the app directly below/beside the shell. Confirm the transparent canvas passes clicks through; test moving the pointer quickly onto newly exposed controls.
+4. Toggle Reduce Motion mid-transition, then test sleep/wake and display reconfiguration. Verify immediate settling, no stale movement, preserved attention, and no hover-driven focus steal.
+5. Repeat on a non-notch display and across Spaces/full-screen. Check VoiceOver/keyboard, and profile idle versus repeated transitions if movement still feels uneven.
+
+Apple API references used for implementation: [spring animation](https://developer.apple.com/documentation/swiftui/animation/spring), [geometryGroup](https://developer.apple.com/documentation/swiftui/view/geometrygroup()). Native perceived smoothness remains pending developer verification.
+
+## Dimension regression correction — 2026-10-01
+
+The developer reported an oversized minimized shell after the continuous-motion change. Reproduction with the full hosting canvas confirmed that the retained expanded ZStack child imposed its ideal size on the shell (370 × 164 pt opaque bounds in the minimized fixture, versus a requested 264 × 34 pt layout). The prior per-state cropped snapshots hid that overflow; they were insufficient evidence for shell dimensions.
+
+Fixed by making retained content an overlay of the size-owning shell. Overlay children cannot contribute their ideal size to the shell layout. The existing spring, top anchor, camera band, fixed canvas and visible-size observer remain in place.
+
+- Debug build passed.
+- New standalone `NudgeCoreTests/NotchLayoutChecks.swift` passed across all modes, both attention variants, and notch/fallback geometry. It renders on the full canvas, compares opaque bounds with an isolated correctly sized shell, and checks top-center anchoring. The pre-fix implementation failed this check.
+- Full-canvas renders for the five main states on both displays were visually inspected. Minimized, monitor, approval, question and confirmation now have distinct expected dimensions. This verifies static layout, not physical animation smoothness.
+- `git diff --check` passed.
+
+Run the new fixture with the geometry fixture compilation command above, substituting `NudgeCoreTests/NotchLayoutChecks.swift` for `NudgeCoreTests/NotchGeometryChecks.swift` and a separate output executable.
+
+Verifikasi manual oleh developer (pending):
+
+1. Relaunch the latest Debug build. Check minimized at launch and after expanding/collapsing; only the original compact band should remain black.
+2. Cycle monitor, permission, question and confirmation, then minimize. Check the height and width settle to the intended state and reverse a transition midway.
+3. Click beside/below the minimized shell, and repeat with Reduce Motion and an external display. Verify click-through and stable top anchoring.

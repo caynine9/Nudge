@@ -8,6 +8,11 @@ struct NotchRootView: View {
     let notchHeight: CGFloat
     let compactWidth: CGFloat
     var availableWidth: CGFloat = .infinity
+    var availableHeight: CGFloat = .infinity
+    var visibleSizeChanged: ((CGSize) -> Void)? = nil
+    @State private var lastOpenSize: CGSize?
+    @State private var lastOpenMode: NotchPresentation = .peek
+    @State private var lastFeedback: InteractionFeedback?
     var hoverChanged: ((Bool) -> Void)? = nil
 
     private var mode: NotchPresentation { appState.presentation.mode }
@@ -16,58 +21,107 @@ struct NotchRootView: View {
     private var targetSize: CGSize {
         let preferred = NotchGeometry.preferredSize(kind: displayKind, compactWidth: compactWidth,
                                                    notchHeight: notchHeight, mode: mode, phase: phase)
-        return CGSize(width: min(preferred.width, availableWidth), height: preferred.height)
+        return CGSize(width: min(preferred.width, availableWidth), height: min(preferred.height, availableHeight))
     }
     private var reduceMotion: Bool { appState.reduceMotion || accessibilityReduceMotion }
 
-    var body: some View {
-        ZStack(alignment: .top) {
-            if mode == .collapsed {
-                Group {
-                    if isNotched { compactHeader }
-                    else { minimizedRow.padding(.horizontal, 12) }
-                }
-                .frame(width: targetSize.width, height: targetSize.height, alignment: .top)
-                .animation(nil, value: targetSize)
-                .transition(NotchMotion.contentTransition(reduceMotion: reduceMotion))
-            } else {
-                VStack(spacing: 0) {
-                    if isNotched { Color.clear.frame(height: notchHeight).accessibilityHidden(true) }
-                    ZStack(alignment: .top) {
-                        if mode == .confirmation, let feedback = appState.presentation.feedback {
-                            confirmation(feedback)
-                                .frame(maxWidth: .infinity).frame(height: 46)
-                                .transition(NotchMotion.contentTransition(reduceMotion: reduceMotion))
-                        } else {
-                            content
-                                .padding(.horizontal, isNotched ? 28 : 16)
-                                .padding(.top, 16).padding(.bottom, 14)
-                                .id(phase)
-                                .transition(NotchMotion.contentTransition(reduceMotion: reduceMotion))
-                        }
-                    }
-                    Spacer(minLength: 0)
-                }
-                // Lay out text at its destination width, then reveal it through the resizing shell.
-                // AppKit owns frame interpolation; intermediate window widths must not wrap the rows.
-                .frame(width: targetSize.width, height: targetSize.height, alignment: .top)
-                .animation(nil, value: targetSize)
-                .transition(NotchMotion.contentTransition(reduceMotion: reduceMotion))
-            }
+    private var contentMode: NotchPresentation { mode == .collapsed ? lastOpenMode : mode }
+
+    private var openSize: CGSize {
+        if mode != .collapsed { return targetSize }
+        if let lastOpenSize { return lastOpenSize }
+        let preferred = NotchGeometry.preferredSize(kind: displayKind, compactWidth: compactWidth,
+                                                   notchHeight: notchHeight, mode: .peek, phase: phase)
+        return CGSize(width: min(preferred.width, availableWidth),
+                      height: min(preferred.height, availableHeight))
+    }
+
+    // Preserve the monitor subtree through thinking/tool/completion changes.
+    private var contentIdentity: String {
+        switch phase {
+        case .waitingPermission: "permission"
+        case .waitingInput: "question"
+        default: "monitor"
         }
-        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var contentLayers: some View {
+        ZStack(alignment: .top) {
+            Group {
+                if isNotched { compactHeader }
+                else { minimizedRow.padding(.horizontal, 12) }
+            }
+            .frame(width: min(compactWidth, availableWidth), height: isNotched ? notchHeight + 2 : 38)
+            .opacity(mode == .collapsed ? 1 : 0)
+            .allowsHitTesting(mode == .collapsed)
+            .accessibilityHidden(mode != .collapsed)
+            .disabled(mode != .collapsed)
+
+            VStack(spacing: 0) {
+                if isNotched { Color.clear.frame(height: notchHeight).accessibilityHidden(true) }
+                ZStack(alignment: .top) {
+                    if contentMode == .confirmation, let feedback = appState.presentation.feedback ?? lastFeedback {
+                        confirmation(feedback)
+                            .frame(maxWidth: .infinity).frame(height: 46)
+                            .transition(NotchMotion.contentTransition(reduceMotion: reduceMotion))
+                    } else {
+                        content
+                            .padding(.horizontal, isNotched ? 28 : 16)
+                            .padding(.top, 16).padding(.bottom, 14)
+                            .id(contentIdentity)
+                            .transition(NotchMotion.contentTransition(reduceMotion: reduceMotion))
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: contentIdentity)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: contentMode == .confirmation)
+            // Keep the open layout while closing: text never squeezes into compact width.
+            .frame(width: openSize.width, height: openSize.height, alignment: .top)
+            .animation(nil, value: openSize)
+            .opacity(mode == .collapsed ? 0 : 1)
+            .offset(y: mode == .collapsed && !reduceMotion ? -6 : 0)
+            .allowsHitTesting(mode != .collapsed)
+            .accessibilityHidden(mode == .collapsed)
+            .disabled(mode == .collapsed)
+        }
+    }
+
+    var body: some View {
+        // The shell owns layout. Retained open content is an overlay, so its ideal
+        // size cannot inflate the collapsed shell or any other smaller state.
+        Color.clear
+        .overlay(alignment: .top) { contentLayers }
         .background { shell.fill(Color.black) }
         .clipShape(shell)
         .shadow(color: .black.opacity(mode == .collapsed ? 0 : 0.24), radius: 12, y: 5)
         .contentShape(shell)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+            visibleSizeChanged?(size)
+        }
+        // Resolve animated geometry once before passing it to the shell, content and
+        // pointer observer. Otherwise leaf views can each inherit different geometry.
+        .geometryGroup()
+        .frame(width: targetSize.width, height: targetSize.height, alignment: .top)
         .animation(reduceMotion ? nil : NotchMotion.shell(collapsing: mode == .collapsed), value: mode)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: phase)
+        .animation(reduceMotion ? nil : NotchMotion.shell(collapsing: false), value: phase)
+        // Rebuild at the current target when motion is disabled or the machine sleeps;
+        // an in-flight animation must not carry across either boundary.
+        .id(reduceMotion || appState.presentation.isSleeping)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .transaction { if reduceMotion { $0.animation = nil; $0.disablesAnimations = true } }
         .environment(\.colorScheme, .dark)
         .foregroundStyle(.white)
         .onHover { inside in
             if let hoverChanged { hoverChanged(inside) }
             else { appState.dispatch(.pointerChanged(inside)) }
+        }
+        .onChange(of: mode, initial: true) { _, mode in
+            if mode != .collapsed { lastOpenMode = mode }
+            if let feedback = appState.presentation.feedback { lastFeedback = feedback }
+        }
+        .onChange(of: targetSize, initial: true) { _, size in
+            if mode != .collapsed { lastOpenSize = size }
         }
         .onChange(of: accessibilityReduceMotion) { _, value in appState.setReduceMotion(value) }
         .onAppear { appState.setReduceMotion(accessibilityReduceMotion) }
@@ -166,7 +220,7 @@ struct NotchRootView: View {
             .buttonStyle(NotchButtonStyle(tone: .row))
             .disabled(appState.isOpeningHost)
             .accessibilityHint("Activate \(appState.host.title). This demo has no real session identity.")
-            if mode == .expanded {
+            if contentMode == .expanded {
                 Button { appState.openFocusedHost() } label: {
                     HStack {
                         Text(appState.isOpeningHost ? "Opening…" : "Open in \(appState.host.title)")

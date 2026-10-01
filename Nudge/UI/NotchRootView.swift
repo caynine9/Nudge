@@ -181,8 +181,11 @@ struct NotchRootView: View {
 
     private var monitor: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Spacer()
+            HStack(spacing: 8) {
+                if contentMode == .expanded {
+                    usageLimits
+                }
+                Spacer(minLength: 0)
                 NotchBadge(title: "Demo")
             }
             Button { appState.openFocusedHost() } label: {
@@ -238,6 +241,37 @@ struct NotchRootView: View {
                 .transition(NotchMotion.contentTransition(reduceMotion: reduceMotion))
             }
         }
+    }
+
+    private var usageLimits: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "sparkle")
+                .font(NotchType.readable(10))
+                .foregroundStyle(NotchPalette.orange)
+                .accessibilityHidden(true)
+            usageWindow(PlaygroundScenario.fiveHourUsage)
+            Rectangle()
+                .fill(NotchPalette.muted)
+                .frame(width: 1, height: 10)
+                .accessibilityHidden(true)
+            usageWindow(PlaygroundScenario.weeklyUsage)
+        }
+        .font(NotchType.readable(11))
+        .monospacedDigit()
+        .fixedSize(horizontal: true, vertical: false)
+        .help("Demo usage: percentage used · time until reset")
+    }
+
+    private func usageWindow(_ window: PlaygroundScenario.UsageWindow) -> some View {
+        HStack(spacing: 4) {
+            Text(window.label).foregroundStyle(.white.opacity(0.90))
+            Text("\(window.usedPercent)%")
+                .fontWeight(.medium)
+                .foregroundStyle(NotchPalette.green)
+            Text(window.resetIn).foregroundStyle(NotchPalette.secondary)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Demo \(window.accessibilityName): \(window.usedPercent) percent used, resets in \(window.accessibilityReset)")
     }
 
     private var permission: some View {

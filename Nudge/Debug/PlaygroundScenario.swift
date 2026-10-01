@@ -8,6 +8,24 @@ enum PlaygroundScenario {
     static let question = "Which deployment target?"
     static let options = ["Production", "Staging", "Local only"]
 
+    struct UsageWindow {
+        let label: String
+        let accessibilityName: String
+        let usedPercent: Int
+        let resetIn: String
+        let accessibilityReset: String
+    }
+
+    // Fixed preview values, not account limits. No polling or reset timer in M0.
+    static let fiveHourUsage = UsageWindow(
+        label: "5h", accessibilityName: "5-hour window", usedPercent: 11,
+        resetIn: "4h1m", accessibilityReset: "4 hours, 1 minute"
+    )
+    static let weeklyUsage = UsageWindow(
+        label: "7d", accessibilityName: "weekly window", usedPercent: 2,
+        resetIn: "6h1m", accessibilityReset: "6 hours, 1 minute"
+    )
+
     struct DiffLine: Identifiable {
         enum Kind { case context, removed, added }
         let id: Int

@@ -118,3 +118,20 @@ Verifikasi manual oleh developer (pending):
 1. Relaunch the latest Debug build. Check minimized at launch and after expanding/collapsing; only the original compact band should remain black.
 2. Cycle monitor, permission, question and confirmation, then minimize. Check the height and width settle to the intended state and reverse a transition midway.
 3. Click beside/below the minimized shell, and repeat with Reduce Motion and an external display. Verify click-through and stable top anchoring.
+
+## Expanded Monitor usage preview
+
+User requested 5-hour and weekly usage in expanded Monitor and explicitly chose simulated values within M0. The existing header now shows `5h 11% 4h1m | 7d 2% 6h1m` beside the Demo badge. Percentages mean usage consumed; durations mean time until reset. Values are fixed authored fixtures, not live account usage. Help text and VoiceOver labels state these meanings and the Demo source. Only expanded Monitor displays the strip.
+
+Validation: Debug Xcode build succeeded; standalone presentation, geometry, and full-canvas layout checks passed. Static renders under `.impeccable/review/usage-*.png` cover expanded/peek/minimized, permission, question and confirmation on notch and standard-display geometry, plus navigation failures in peek/expanded. No shared Xcode test target exists, so no `xcodebuild test` pass is claimed. No account data, real Codex configuration, lifecycle integration, persistence, polling, timer or dependency was added. Physical interaction and accessibility verification remain pending with the developer.
+
+Verifikasi manual oleh developer:
+
+1. [ ] Build/relaunch Nudge, pin Monitor expanded, and confirm both `5h` and `7d` values and the Demo badge are readable without clipping on notch and fallback displays.
+2. [ ] Switch between expanded, hover peek, minimized, permission and question. Confirm usage appears only in expanded Monitor and the task title, host action and attention controls remain usable.
+3. [ ] Hover the usage strip to read its explanation; use VoiceOver to confirm each window announces Demo, percentage used and time until reset.
+4. [ ] Enable Reduce Motion and repeat expand/collapse; confirm the header remains stable and no countdown animation or repeated attention is introduced.
+
+This completes the requested M0 source change; developer QA and the broader M0 handoff remain pending. Continue to the next phase only after developer instructions.
+
+Independent finish review: **ship** for the scoped M0 source/static change after reviewing the diff, reference, and all 16 captures; no material findings. Ordinary-extension documentation check confirmed existing tokens and dimensions are reused, so design-system files were preserved. Existing DESIGN.md/sidecar/surface-brief motion text still describes the older animated AppKit resizing approach; the later motion verification notes and current source describe the stable-canvas SwiftUI approach. That pre-existing documentation drift was not repaired in this usage task.

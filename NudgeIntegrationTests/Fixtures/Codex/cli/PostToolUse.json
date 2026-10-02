@@ -1,0 +1,1 @@
+{"session_id":"fixture-cli-session","turn_id":"cli-turn-1","cwd":"/tmp/nudge-fixture-project","hook_event_name":"PostToolUse","tool_name":"Bash","tool_use_id":"cli-tool-1","tool_response":"SYNTHETIC_SECRET_OUTPUT"}

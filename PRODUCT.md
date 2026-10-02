@@ -22,7 +22,7 @@ Swift 6, SwiftUI composition, AppKit NSPanel windowing; camera exclusion, menu b
 
 ## Capabilities and Constraints
 
-Current M0 is a synthetic visual playground, not live monitoring. Desktop and CLI must eventually be proven separately. Codex works independently if Nudge is unavailable. No account, backend, telemetry, transcript persistence, persistent allow, or permission bypass. Initial live attention decisions remain in Codex; buttons in this visual playground are explicitly simulated. User has requested monitor-row app activation; exact thread/tab routing remains unverified.
+M1 now has a local lifecycle-hook event spine, focused live snapshot, helper, Unix socket, safe `hooks.json` installer, and explicit Demo mode. Source and hermetic tests are available; live Codex Desktop new/resumed threads and CLI coverage remain pending developer verification. Nudge shows trust/host status as unverified until evidence arrives, and Codex works independently if Nudge is unavailable. No account, backend, telemetry, transcript persistence, persistent allow, or permission bypass. Demo attention controls remain simulated. Exact thread/tab routing remains unverified.
 
 ## Brand Commitments
 
@@ -30,7 +30,7 @@ Name Nudge, original mascot Nudgie. User explicitly selected the five attached V
 
 ## Evidence on Hand
 
-Source of truth: docs/Nudge-Project-Brief.md, AGENTS.md. Existing source and docs/Nudge-M0-Verification.md. User supplied five reference screenshots for monitor, approval, question, minimized, and confirmation. Synthetic fixture content must be identified as Demo. No real session ID, terminal tab ID, approval response contract, or question response contract is available to this UI yet.
+Source of truth: docs/Nudge-Project-Brief.md, AGENTS.md. M0 manual verification remains pending in docs/Nudge-M0-Verification.md. M1 implementation status and remaining handoff are in docs/Nudge-M1-Verification.md; published hook contract vs installed-host evidence is separated in docs/Nudge-M1-Codex-Contract.md. User supplied five reference screenshots for monitor, approval, question, minimized, and confirmation. Synthetic fixture content must be identified as Demo. Live question/permission mirroring is not in M1; no approval response contract or precise thread routing is claimed.
 
 ## Accessibility & Inclusion
 

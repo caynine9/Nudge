@@ -1,16 +1,10 @@
 import AppKit
 
-enum CodexHost: String, CaseIterable, Identifiable {
-    case desktop, terminal
-    var id: String { rawValue }
-    var title: String { self == .desktop ? "Desktop" : "Terminal" }
-    var bundleIdentifier: String { self == .desktop ? "com.openai.codex" : "com.apple.Terminal" }
-}
-
 // M0 activation only. No fabricated thread URL or terminal tab identity.
 @MainActor
 struct CodexNavigator {
     func open(_ host: CodexHost) async throws {
+        guard host == .desktop else { throw NavigationError.unsupportedHost(host.title) }
         let workspace = NSWorkspace.shared
         if let running = workspace.runningApplications.first(where: { $0.bundleIdentifier == host.bundleIdentifier }),
            running.activate(options: [.activateAllWindows]) {
@@ -26,9 +20,11 @@ struct CodexNavigator {
 
     enum NavigationError: LocalizedError {
         case notInstalled(String)
+        case unsupportedHost(String)
         var errorDescription: String? {
             switch self {
             case let .notInstalled(name): "\(name) is unavailable. Open the app, then try again."
+            case let .unsupportedHost(name): "Nudge cannot route to a \(name) terminal session yet."
             }
         }
     }

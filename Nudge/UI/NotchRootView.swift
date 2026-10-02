@@ -17,6 +17,16 @@ struct NotchRootView: View {
 
     private var mode: NotchPresentation { appState.presentation.mode }
     private var phase: SessionPhase { appState.presentation.snapshot.phase }
+    private var displayedPhaseTitle: String {
+        guard !isDemo else { return phase.title }
+        if phase == .toolUse { return "Working" }
+        if phase == .completed { return "Turn finished" }
+        return phase.title
+    }
+    private var isDemo: Bool { appState.isDemoMode }
+    private var focusedTitle: String {
+        isDemo ? PlaygroundScenario.taskTitle : appState.presentation.snapshot.projectLabel
+    }
     private var isNotched: Bool { displayKind == .notch }
     private var targetSize: CGSize {
         let preferred = NotchGeometry.preferredSize(kind: displayKind, compactWidth: compactWidth,
@@ -134,7 +144,7 @@ struct NotchRootView: View {
         }
         .onChange(of: accessibilityReduceMotion) { _, value in appState.setReduceMotion(value) }
         .onAppear { appState.setReduceMotion(accessibilityReduceMotion) }
-        .accessibilityIdentifier("nudge.notch-playground")
+        .accessibilityIdentifier("nudge.notch")
     }
 
     private var shell: NotchShell {
@@ -155,7 +165,7 @@ struct NotchRootView: View {
         .contentShape(Rectangle())
         .onTapGesture { appState.dispatch(.togglePinned) }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(PlaygroundScenario.taskTitle), \(phase.title), demo")
+        .accessibilityLabel("\(focusedTitle), \(displayedPhaseTitle)\(isDemo ? ", demo" : "")")
         .accessibilityHint("Expand or collapse the focused session")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { appState.dispatch(.togglePinned) }
@@ -165,14 +175,14 @@ struct NotchRootView: View {
         Button { appState.dispatch(.togglePinned) } label: {
             HStack(spacing: 10) {
                 mascot.scaleEffect(0.68).frame(width: 23, height: 24)
-                Text(PlaygroundScenario.taskTitle).font(NotchType.readable(12)).lineLimit(1)
+                Text(focusedTitle).font(NotchType.readable(12)).lineLimit(1)
                 Spacer(minLength: 0)
                 Image(systemName: phase.symbol).foregroundStyle(accent).font(NotchType.readable(10))
             }
             .frame(height: 38)
         }
         .buttonStyle(NotchButtonStyle(tone: .row))
-        .accessibilityLabel("\(PlaygroundScenario.taskTitle), \(phase.title), demo")
+        .accessibilityLabel("\(focusedTitle), \(displayedPhaseTitle)\(isDemo ? ", demo" : "")")
     }
 
     private var mascot: some View {
@@ -181,14 +191,53 @@ struct NotchRootView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch phase {
-        case .waitingPermission: permission
-        case .waitingInput: question
-        default: monitor
+        if isDemo {
+            switch phase {
+            case .waitingPermission: permission
+            case .waitingInput: question
+            default: demoMonitor
+            }
+        } else {
+            liveMonitor
         }
     }
 
-    private var monitor: some View {
+    private var liveMonitor: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Codex")
+                    .font(NotchType.readable(11, weight: .medium))
+                    .foregroundStyle(NotchPalette.secondary)
+                Spacer()
+                NotchBadge(title: "Live")
+            }
+            VStack(alignment: .leading, spacing: 7) {
+                Text(focusedTitle)
+                    .font(NotchType.readable(14, weight: .medium))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                Label(displayedPhaseTitle, systemImage: phase.symbol)
+                    .font(NotchType.readable(12))
+                    .foregroundStyle(accent)
+                if let tool = appState.presentation.snapshot.currentTool {
+                    Label(tool.summary, systemImage: tool.symbol)
+                        .font(NotchType.readable(12))
+                        .foregroundStyle(accent)
+                        .lineLimit(1)
+                }
+                if phase == .idle || phase == .discovered {
+                    Text("Waiting for local Codex activity.")
+                        .font(NotchType.readable(11))
+                        .foregroundStyle(NotchPalette.secondary)
+                        .lineLimit(2)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(focusedTitle), Codex \(displayedPhaseTitle)\(appState.presentation.snapshot.currentTool.map { ", \($0.summary)" } ?? "")")
+    }
+
+    private var demoMonitor: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 if contentMode == .peek || contentMode == .expanded {

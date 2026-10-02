@@ -6,7 +6,7 @@
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES">
       <BuildActionEntries>
-         <BuildActionEntry
+      <BuildActionEntry
             buildForTesting = "YES"
             buildForRunning = "YES"
             buildForProfiling = "YES"
@@ -19,14 +19,32 @@
                BlueprintName = "Nudge"
                ReferencedContainer = "container:Nudge.xcodeproj">
             </BuildableReference>
-         </BuildActionEntry>
+      </BuildActionEntry>
+      <BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">
+         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="F20000000000000000000001" BuildableName="NudgeBridge" BlueprintName="NudgeBridge" ReferencedContainer="container:Nudge.xcodeproj" />
+      </BuildActionEntry>
+      <BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">
+         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="F20000000000000000000002" BuildableName="NudgeCoreTests.xctest" BlueprintName="NudgeCoreTests" ReferencedContainer="container:Nudge.xcodeproj" />
+      </BuildActionEntry>
+      <BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">
+         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="F20000000000000000000003" BuildableName="NudgeIntegrationTests.xctest" BlueprintName="NudgeIntegrationTests" ReferencedContainer="container:Nudge.xcodeproj" />
+      </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES" />
+      shouldUseLaunchSchemeArgsEnv = "YES">
+      <Testables>
+         <TestableReference skipped="NO" parallelizable="YES">
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="F20000000000000000000002" BuildableName="NudgeCoreTests.xctest" BlueprintName="NudgeCoreTests" ReferencedContainer="container:Nudge.xcodeproj" />
+         </TestableReference>
+         <TestableReference skipped="NO" parallelizable="NO">
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="F20000000000000000000003" BuildableName="NudgeIntegrationTests.xctest" BlueprintName="NudgeIntegrationTests" ReferencedContainer="container:Nudge.xcodeproj" />
+         </TestableReference>
+      </Testables>
+   </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"

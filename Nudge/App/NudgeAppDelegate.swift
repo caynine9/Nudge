@@ -8,12 +8,30 @@ final class NudgeAppDelegate: NSObject, NSApplicationDelegate {
     private var screenObserver: NSObjectProtocol?
     private var sleepObserver: NSObjectProtocol?
     private var wakeObserver: NSObjectProtocol?
+    private var socketServer: NudgeSocketServer?
+    private let eventMonitor = CodexEventMonitor()
     private let workspaceCenter = NSWorkspace.shared.notificationCenter
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         let state = AppState.shared
         panelController = NotchPanelController(appState: state)
+        let monitor = eventMonitor
+        let server = NudgeSocketServer { envelope in
+            Task {
+                let snapshot = await monitor.consume(envelope)
+                await MainActor.run { AppState.shared.updateLiveSnapshot(snapshot) }
+            }
+        }
+        socketServer = server
+        Task.detached(priority: .userInitiated) {
+            do {
+                try server.start()
+                await MainActor.run { AppState.shared.setSocketStatus("Local event listener ready.") }
+            } catch {
+                await MainActor.run { AppState.shared.setSocketStatus("Local event listener unavailable. Codex can continue normally.") }
+            }
+        }
         visibilitySubscription = state.$wantsPanelVisible
             .removeDuplicates()
             .sink { [weak self] visible in
@@ -55,6 +73,8 @@ final class NudgeAppDelegate: NSObject, NSApplicationDelegate {
         visibilitySubscription?.cancel()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         [sleepObserver, wakeObserver].compactMap { $0 }.forEach { workspaceCenter.removeObserver($0) }
+        socketServer?.stop()
+        socketServer = nil
         panelController?.shutdown()
         panelController = nil
     }

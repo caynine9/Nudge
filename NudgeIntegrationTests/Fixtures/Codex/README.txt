@@ -1,0 +1,1 @@
+These fixtures are synthetic and mirror the published command-hook field shapes available on 2026-10-02. They are not captured from Codex Desktop or CLI and provide no live-host compatibility evidence. Prompt, command, output and assistant strings are deliberate privacy sentinels that the adapter must discard.

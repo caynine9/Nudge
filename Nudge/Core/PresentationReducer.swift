@@ -12,15 +12,15 @@ struct PresentationReducer {
             effects.append(.cancel(.feedback))
 
             if snapshot.phase == .completed,
-               next.consumedCompletionTurnID != snapshot.turnID {
-                next.consumedCompletionTurnID = snapshot.turnID
+               next.consumedCompletionTurnID != Self.completionKey(snapshot) {
+                next.consumedCompletionTurnID = Self.completionKey(snapshot)
                 next.transientPhase = .completed
                 next.transientGeneration += 1
                 effects.append(.schedule(.transient, after: .seconds(3.2), generation: next.transientGeneration))
                 effects.append(.celebrate)
             } else if snapshot.phase == .failed,
-                      next.consumedFailureTurnID != snapshot.turnID {
-                next.consumedFailureTurnID = snapshot.turnID
+                      next.consumedFailureTurnID != Self.completionKey(snapshot) {
+                next.consumedFailureTurnID = Self.completionKey(snapshot)
                 next.transientPhase = .failed
                 next.transientGeneration += 1
                 effects.append(.schedule(.transient, after: .seconds(5), generation: next.transientGeneration))
@@ -140,5 +140,9 @@ struct PresentationReducer {
         }
 
         return PresentationTransition(state: next, effects: effects)
+    }
+
+    private static func completionKey(_ snapshot: ActivitySnapshot) -> String {
+        "\(snapshot.sessionID)|\(snapshot.turnID)"
     }
 }

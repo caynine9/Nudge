@@ -1,6 +1,6 @@
 import Foundation
 
-enum SessionPhase: String, CaseIterable, Identifiable {
+enum SessionPhase: String, CaseIterable, Codable, Identifiable, Sendable {
     case discovered
     case idle
     case thinking
@@ -48,6 +48,10 @@ enum SessionPhase: String, CaseIterable, Identifiable {
         self == .waitingPermission || self == .waitingInput
     }
 
+    var isTerminal: Bool {
+        self == .completed || self == .failed || self == .interrupted || self == .ended
+    }
+
     var transientDuration: Duration? {
         switch self {
         case .completed: .seconds(3.2)
@@ -72,7 +76,7 @@ enum SessionPhase: String, CaseIterable, Identifiable {
     }
 }
 
-enum ToolCategory {
+enum ToolCategory: String, Codable, Sendable {
     case read
     case edit
     case shell
@@ -82,13 +86,42 @@ enum ToolCategory {
     case other
 }
 
-struct ToolActivity: Equatable {
+struct ToolActivity: Codable, Equatable, Sendable {
     let category: ToolCategory
     let summary: String
     let symbol: String
+
+    private enum CodingKeys: String, CodingKey { case category, summary, symbol }
+
+    init(category: ToolCategory, summary: String, symbol: String) {
+        self.category = category
+        self.summary = summary
+        self.symbol = symbol
+    }
+
+    init(from decoder: Decoder) throws {
+        let dynamic = try decoder.container(keyedBy: ToolActivityJSONKey.self)
+        let allowed: Set<String> = ["category", "summary", "symbol"]
+        guard Set(dynamic.allKeys.map(\.stringValue)).isSubset(of: allowed) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath,
+                                                     debugDescription: "Unknown ToolActivity field."))
+        }
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        category = try container.decode(ToolCategory.self, forKey: .category)
+        summary = try container.decode(String.self, forKey: .summary)
+        symbol = try container.decode(String.self, forKey: .symbol)
+    }
 }
 
-struct ActivitySnapshot: Equatable {
+private struct ToolActivityJSONKey: CodingKey {
+    let stringValue: String
+    let intValue: Int?
+
+    init?(stringValue: String) { self.stringValue = stringValue; intValue = nil }
+    init?(intValue: Int) { self.stringValue = String(intValue); self.intValue = intValue }
+}
+
+struct ActivitySnapshot: Equatable, Sendable {
     let sessionID: String
     let turnID: String
     let projectLabel: String
@@ -96,6 +129,11 @@ struct ActivitySnapshot: Equatable {
     let currentTool: ToolActivity?
     let activityLabel: String
     let detail: String
+
+    static let empty = Self(
+        sessionID: "", turnID: "", projectLabel: "Codex", phase: .idle,
+        currentTool: nil, activityLabel: "Ready", detail: "Waiting for local Codex activity."
+    )
 
     static func demo(turn: Int, phase: SessionPhase) -> Self {
         let activity: String
@@ -142,7 +180,7 @@ enum PresentationTimer: Hashable {
 }
 
 struct PresentationState: Equatable {
-    var snapshot = ActivitySnapshot.demo(turn: 1, phase: .thinking)
+    var snapshot = ActivitySnapshot.empty
     var pointerInside = false
     var peekVisible = false
     var pinnedOpen = false

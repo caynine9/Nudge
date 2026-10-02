@@ -65,6 +65,9 @@
 		A2000000000000000000002C /* Codex fixtures in NudgeIntegrationTests */ = {isa = PBXBuildFile; fileRef = B20000000000000000000015; };
 		A2000000000000000000002D /* NudgeBridge in Embed Helper Tool */ = {isa = PBXBuildFile; fileRef = B20000000000000000000016; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy,);}; };
 		A2000000000000000000002E /* NudgeBridge in Integration Test Executable */ = {isa = PBXBuildFile; fileRef = B20000000000000000000016; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy,);}; };
+        A40000000000000000000001 /* SpaceTransition.swift in Nudge */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001; };
+        A40000000000000000000002 /* SpaceTransition.swift in NudgeCoreTests */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001; };
+        A40000000000000000000003 /* SpaceTransitionTests.swift in NudgeCoreTests */ = {isa = PBXBuildFile; fileRef = B40000000000000000000002; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -108,6 +111,8 @@
 		B20000000000000000000017 /* NudgeCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NudgeCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000000000000000000018 /* NudgeIntegrationTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NudgeIntegrationTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000000000000000000019 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
+        B40000000000000000000001 /* SpaceTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nudge/UI/SpaceTransition.swift; sourceTree = SOURCE_ROOT; };
+        B40000000000000000000002 /* SpaceTransitionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NudgeCoreTests/SpaceTransitionTests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -124,6 +129,8 @@
 				B1000000000000000000000D /* NotchComponents.swift */,
 				B1000000000000000000000E /* PlaygroundScenario.swift */,
 				B1000000000000000000000F /* CodexNavigator.swift */,
+                B40000000000000000000001 /* SpaceTransition.swift */,
+                B40000000000000000000002 /* SpaceTransitionTests.swift */,
 				D10000000000000000000002 /* Nudge */,
 				D20000000000000000000001 /* M1 Sources and Tests */,
 				D10000000000000000000003 /* Products */,
@@ -147,6 +154,7 @@
 		D10000000000000000000006 /* UI */ = {isa = PBXGroup; children = (B10000000000000000000006, B10000000000000000000007, B10000000000000000000008, B10000000000000000000009, B1000000000000000000000A, ); path = UI; sourceTree = "<group>"; };
 		D10000000000000000000007 /* Support */ = {isa = PBXGroup; children = (B1000000000000000000000B, ); path = Support; sourceTree = "<group>"; };
 		E10000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
+            A40000000000000000000001 /* SpaceTransition.swift in Nudge */,
 			A10000000000000000000001 /* NudgeApp.swift in Sources */,
 			A10000000000000000000002 /* NudgeAppDelegate.swift in Sources */,
 			A10000000000000000000003 /* AppState.swift in Sources */,
@@ -174,7 +182,7 @@
 		); runOnlyForDeploymentPostprocessing = 0; };
 		D20000000000000000000001 /* M1 Sources and Tests */ = {isa = PBXGroup; children = (B20000000000000000000001, B20000000000000000000002, B20000000000000000000003, B20000000000000000000004, B20000000000000000000005, B20000000000000000000006, B20000000000000000000007, B20000000000000000000008, B20000000000000000000009, B2000000000000000000000A, B2000000000000000000000B, B2000000000000000000000C, B2000000000000000000000D, B2000000000000000000000E, B2000000000000000000000F, B20000000000000000000010, B20000000000000000000011, B20000000000000000000012, B20000000000000000000013, B20000000000000000000014, B20000000000000000000015, B20000000000000000000019, ); name = "M1 Sources and Tests"; sourceTree = "<group>"; };
 		E20000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A2000000000000000000000C, A2000000000000000000000D, A2000000000000000000000E, A2000000000000000000000F, A20000000000000000000010, A20000000000000000000011, A20000000000000000000012, ); runOnlyForDeploymentPostprocessing = 0; };
-		E20000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A20000000000000000000013, A20000000000000000000014, A20000000000000000000015, A20000000000000000000016, A20000000000000000000017, A20000000000000000000018, A20000000000000000000019, A2000000000000000000001A, ); runOnlyForDeploymentPostprocessing = 0; };
+		E20000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A40000000000000000000002, A40000000000000000000003, A20000000000000000000013, A20000000000000000000014, A20000000000000000000015, A20000000000000000000016, A20000000000000000000017, A20000000000000000000018, A20000000000000000000019, A2000000000000000000001A, ); runOnlyForDeploymentPostprocessing = 0; };
 		E20000000000000000000003 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A2000000000000000000001B, A2000000000000000000001C, A2000000000000000000001D, A2000000000000000000001E, A2000000000000000000001F, A20000000000000000000020, A20000000000000000000021, A20000000000000000000022, A20000000000000000000023, A20000000000000000000024, A20000000000000000000025, A20000000000000000000026, A20000000000000000000027, A20000000000000000000028, A20000000000000000000029, ); runOnlyForDeploymentPostprocessing = 0; };
 		E20000000000000000000004 /* Embed Helper Tool */ = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 6; files = (A2000000000000000000002D, ); name = "Embed Helper Tool"; runOnlyForDeploymentPostprocessing = 0; };
 		E20000000000000000000005 /* Embed NudgeBridge in Integration Tests */ = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 6; files = (A2000000000000000000002E, ); name = "Embed NudgeBridge in Integration Tests"; runOnlyForDeploymentPostprocessing = 0; };

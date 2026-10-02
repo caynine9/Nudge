@@ -199,3 +199,18 @@ Verifikasi manual oleh developer (pending):
 1. Expand and minimize repeatedly. Confirm both dimensions move together, with one small rebound before settling and a stationary top anchor.
 2. Reverse midway and cycle the largest permission state, question and confirmation. Check there is no clipped bottom/side during bounce and all final dimensions stay correct.
 3. Toggle Reduce Motion during movement and check click-through beside/below the shell. Compare rebound strength and timing directly with the supplied video.
+
+## Symmetric collapse and Spaces visibility — 2026-10-02
+
+Closing now uses the same 0.44 s response / 0.78 damping spring as opening, superseding the earlier 0.34 s close. Removed the expanded layer's duplicate opacity multiplication so its dissolve has a single opacity curve in either direction. Width and height still move together, preserve the top anchor, and retain the small settling bounce. Reduce Motion keeps immediate geometry without content blur/scale.
+
+The panel observes the public workspace active-Space notification, fades out over 100 ms, waits until 350 ms after the latest notification, and returns over 180 ms. This is a settling heuristic: Apple's public notification does not guarantee animation start/end timing, so appearance precisely after a gesture completes is not proven. Consecutive switches replace the pending return; hide, sleep, shutdown and enabling Reduce Motion cancel obsolete work. The fading panel ignores mouse input, and screen geometry is refreshed before return. Session/attention state is preserved. Reduce Motion uses immediate opacity changes.
+
+Validation: Debug application build and all NudgeCoreTests passed through `xcodebuild ... -only-testing:NudgeCoreTests test`. Four manual-clock tests cover fade order, consecutive Space changes, cancellation during both waits, and Reduce Motion. Native spring/geometry fixtures passed, including equal opening/closing springs. Full-canvas layout checks passed for every state on notch and fallback geometry, and `git diff --check` passed. No real Codex configuration or live integration was changed. Native Spaces timing and perceived motion remain pending developer verification.
+
+Verifikasi manual oleh developer (pending):
+
+1. Expand/minimize repeatedly and reverse midway, including permission/question content. Check equal softness in both directions, subtle rebound, correct endpoint dimensions and no clipping.
+2. Change Spaces using Control-arrow, trackpad swipes and Mission Control, including full-screen and an external display. Confirm the fade and return timing feels connected to each system transition; note any early reappearance or late disappearance.
+3. Switch several Spaces quickly, hide Nudge or sleep during the fade, then show/wake. Confirm no stale reappearance, lost attention state or invisible panel blocking clicks.
+4. Enable Reduce Motion before and during these transitions. Check immediate geometry/opacity, restored interaction, and click-through outside the visible shell.

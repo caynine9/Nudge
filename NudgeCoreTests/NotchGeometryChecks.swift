@@ -87,6 +87,8 @@ struct NotchGeometryChecks {
         }
         // Sample the same native springs used by the view, including their
         // overshoot. The transparent canvas must contain the visible rebound.
+        precondition(NotchMotion.shellSpring(collapsing: true) == NotchMotion.shellSpring(collapsing: false),
+                     "Collapse must use the same response and damping as expansion")
         for collapsing in [false, true] {
             let spring = NotchMotion.shellSpring(collapsing: collapsing)
             let samples = (0...240).map { spring.value(target: 1.0, time: Double($0) / 240) }

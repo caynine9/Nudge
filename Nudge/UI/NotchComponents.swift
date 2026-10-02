@@ -4,7 +4,7 @@ enum NotchMotion {
     // Both dimensions share one spring: a small overshoot then a quick settle,
     // preserving velocity when a user reverses direction before it finishes.
     static func shellSpring(collapsing: Bool) -> Spring {
-        Spring(response: collapsing ? 0.34 : 0.44, dampingRatio: 0.78)
+        Spring(response: 0.44, dampingRatio: 0.78)
     }
 
     static func shell(collapsing: Bool) -> Animation {
@@ -35,13 +35,14 @@ enum NotchMotion {
 // to this small content layer and disappears completely at rest.
 struct NotchPageDissolve: ViewModifier {
     var amount: CGFloat
+    var reduceMotion = false
 
     func body(content: Content) -> some View {
         let amount = min(1, max(0, amount))
         content
-            .blur(radius: NotchMotion.contentBlur * amount)
+            .blur(radius: reduceMotion ? 0 : NotchMotion.contentBlur * amount)
             .opacity(1 - amount)
-            .scaleEffect(1 - 0.015 * amount, anchor: .top)
+            .scaleEffect(reduceMotion ? 1 : 1 - 0.015 * amount, anchor: .top)
     }
 }
 

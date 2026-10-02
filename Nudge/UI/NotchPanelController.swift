@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 @MainActor
@@ -17,6 +18,9 @@ final class NotchPanelController {
     private let panel: NudgePanel
     private var localPointerMonitor: Any?
     private var globalPointerMonitor: Any?
+    private let spaceTransition = SpaceTransition()
+    private var spaceObserver: NSObjectProtocol?
+    private var motionSubscription: AnyCancellable?
     private var visibleSize: CGSize = .zero
     private var hostingGeneration = 0
     private var screenID: CGDirectDisplayID?
@@ -42,6 +46,17 @@ final class NotchPanelController {
         panel.acceptsMouseMovedEvents = true
 
         refreshScreen(animated: false)
+        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.activeSpaceChanged() }
+        }
+        motionSubscription = appState.$reduceMotion.removeDuplicates().dropFirst().sink { [weak self] enabled in
+            guard enabled, let self, self.spaceTransition.isTransitioning else { return }
+            self.spaceTransition.cancel()
+            self.fadePanel(to: 1, duration: 0)
+            self.reconcilePointer()
+        }
         localPointerMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
             Task { @MainActor in self?.reconcilePointer() }
             return event
@@ -53,16 +68,22 @@ final class NotchPanelController {
 
     func show() {
         guard !appState.presentation.isSleeping else { return }
+        if !spaceTransition.isTransitioning { fadePanel(to: 1, duration: 0) }
         panel.orderFrontRegardless()
         reconcilePointer()
     }
 
     func hide() {
+        spaceTransition.cancel()
         panel.orderOut(nil)
+        fadePanel(to: 1, duration: 0)
     }
 
     func shutdown() {
         hide()
+        motionSubscription?.cancel()
+        if let spaceObserver { NSWorkspace.shared.notificationCenter.removeObserver(spaceObserver) }
+        spaceObserver = nil
         if let localPointerMonitor { NSEvent.removeMonitor(localPointerMonitor) }
         if let globalPointerMonitor { NSEvent.removeMonitor(globalPointerMonitor) }
         localPointerMonitor = nil
@@ -70,7 +91,7 @@ final class NotchPanelController {
     }
 
     func hideForSleep() {
-        panel.orderOut(nil)
+        hide()
     }
 
     func wake() {
@@ -125,6 +146,27 @@ final class NotchPanelController {
         reconcilePointer()
     }
 
+    private func activeSpaceChanged() {
+        guard panel.isVisible, appState.wantsPanelVisible, !appState.presentation.isSleeping else { return }
+        panel.ignoresMouseEvents = true
+        // This notification identifies a changed Space, not the exact end of the
+        // system animation. A short quiet interval absorbs consecutive switches.
+        spaceTransition.begin(reduceMotion: appState.reduceMotion, fade: { [weak self] opacity, duration in
+            guard let self, self.appState.wantsPanelVisible, !self.appState.presentation.isSleeping else { return }
+            if opacity == 1 { self.refreshScreen() }
+            self.fadePanel(to: opacity, duration: duration)
+        }, completed: { [weak self] in
+            self?.reconcilePointer()
+        })
+    }
+
+    private func fadePanel(to opacity: Double, duration: TimeInterval) {
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = duration
+            panel.animator().alphaValue = opacity
+        }
+    }
+
     private var preferredScreen: NSScreen? {
         let screens = NSScreen.screens
         guard !screens.isEmpty else { return NSScreen.main }
@@ -141,6 +183,10 @@ final class NotchPanelController {
 
     private func reconcilePointer() {
         guard panel.isVisible, !appState.presentation.isSleeping, let geometry = currentGeometry else { return }
+        guard !spaceTransition.isTransitioning else {
+            panel.ignoresMouseEvents = true
+            return
+        }
         let frame = geometry.frame(forVisibleSize: visibleSize)
         let inside = geometry.containsInteractionPoint(NSEvent.mouseLocation, panelFrame: frame)
         // Transparent canvas must not swallow clicks meant for menu items or other apps.

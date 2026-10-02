@@ -98,8 +98,9 @@ struct NotchRootView: View {
                     .transition(NotchMotion.pageTransition(reduceMotion: reduceMotion))
             }
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: contentIdentity)
-            .modifier(NotchPageDissolve(amount: mode == .collapsed && !reduceMotion ? 1 : 0))
-            .opacity(mode == .collapsed ? 0 : 1)
+            // One opacity curve in both directions; multiplying two fades made
+            // the expanded content disappear too quickly during contraction.
+            .modifier(NotchPageDissolve(amount: mode == .collapsed ? 1 : 0, reduceMotion: reduceMotion))
             .allowsHitTesting(mode != .collapsed)
             .accessibilityHidden(mode == .collapsed)
             .disabled(mode == .collapsed)

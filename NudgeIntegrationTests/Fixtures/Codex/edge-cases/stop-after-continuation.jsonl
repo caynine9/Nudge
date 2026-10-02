@@ -1,0 +1,2 @@
+{"session_id":"edge-session-stop","turn_id":"opaque:turn/a","cwd":"/tmp/nudge-synthetic","hook_event_name":"Stop","stop_hook_active":false}
+{"session_id":"edge-session-stop","turn_id":"opaque:turn/a","cwd":"/tmp/nudge-synthetic","hook_event_name":"Stop","stop_hook_active":true}

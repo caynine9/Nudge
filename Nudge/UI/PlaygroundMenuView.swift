@@ -65,6 +65,9 @@ struct PlaygroundMenuView: View {
             let target = appState.configurationTarget(for: appState.integrationHost)
             Text("\(target.confidence): \(target.hooksFile.path)")
                 .font(.caption)
+            if let issue = target.resolutionIssue {
+                Text(issue).font(.caption).foregroundStyle(.orange)
+            }
             Text("Nudge manages hooks.json. Codex may also load hooks from config.toml and merge both sources.")
                 .font(.caption)
             Text("Listener: \(appState.socketStatus)")

@@ -23,9 +23,6 @@ struct CodexHookAdapter {
             break
         case .userPromptSubmit, .stop, .interrupt:
             guard turnID != nil else { throw HookPayloadError.missingIdentity }
-            if expectedEvent == .stop, object["stop_hook_active"] as? Bool == true {
-                throw HookPayloadError.nonTerminalStop
-            }
         case .preToolUse, .postToolUse:
             guard turnID != nil,
                   let identifier = boundedString(object["tool_use_id"], maximumBytes: WireEnvelope.maximumIdentifierBytes),
@@ -88,5 +85,4 @@ enum HookPayloadError: Error, Equatable {
     case inputTooLarge
     case invalidShape
     case missingIdentity
-    case nonTerminalStop
 }

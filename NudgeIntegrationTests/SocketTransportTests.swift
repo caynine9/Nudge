@@ -40,6 +40,20 @@ final class SocketTransportTests: XCTestCase {
         wait(for: [received], timeout: 2)
     }
 
+    func testFlushWaitsForAcceptedFramesToReachEventHandler() throws {
+        let (directory, path) = temporarySocketPath()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let capture = SocketEventCapture()
+        let server = NudgeSocketServer(path: path) { envelope in capture.append(envelope.sessionID) }
+        try server.start()
+        defer { server.stop() }
+
+        try UnixSocketTransport.send(envelope(), to: path, timeout: 0.4)
+        server.flushEvents()
+
+        XCTAssertEqual(capture.sessionIDs, ["socket-fixture"])
+    }
+
     func testRegularFileAndSecondLiveListenerAreNeverUnlinked() throws {
         let (directory, path) = temporarySocketPath()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -101,5 +115,22 @@ final class SocketTransportTests: XCTestCase {
     private func envelope() -> WireEnvelope {
         WireEnvelope(schemaVersion: 1, source: "codex", event: .userPromptSubmit, sessionID: "socket-fixture",
                      turnID: "turn-1", observedAtMilliseconds: 1, projectLabel: "Fixture", toolCallID: nil, tool: nil)
+    }
+}
+
+private final class SocketEventCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [String] = []
+
+    var sessionIDs: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return values
+    }
+
+    func append(_ value: String) {
+        lock.lock()
+        values.append(value)
+        lock.unlock()
     }
 }

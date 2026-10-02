@@ -1,29 +1,79 @@
 import Foundation
 
 actor CodexEventMonitor {
+    static let duplicateTTL: UInt64 = 2_000_000_000
+    static let maximumRecentEvents = 512
+    static let idleRetention: TimeInterval = 30 * 60
+
     private var sessions: [String: CodexSessionState] = [:]
-    private var recentEventKeys: [String] = []
-    private var recentEventSet: Set<String> = []
+    private var recentEventTimes: [String: UInt64] = [:]
+    private var recentEventOrder: [String] = []
     private var selectedSessionID: String?
     private let reducer = SessionReducer()
     private let focusPolicy = FocusPolicy()
 
-    func consume(_ envelope: WireEnvelope, now: Date = Date()) -> ActivitySnapshot {
+    func consume(
+        _ envelope: WireEnvelope,
+        now: Date = Date(),
+        monotonicNow: UInt64 = DispatchTime.now().uptimeNanoseconds
+    ) -> ActivitySnapshot {
         let event = Self.event(from: envelope)
-        guard !recentEventSet.contains(event.semanticKey) else { return focusedSnapshot(at: now) }
-        recentEventKeys.append(event.semanticKey)
-        recentEventSet.insert(event.semanticKey)
-        if recentEventKeys.count > 512 {
-            recentEventSet.remove(recentEventKeys.removeFirst())
-        }
+        pruneRecentEvents(at: monotonicNow)
 
         let current = sessions[event.sessionID]
+        let duplicate = recentEventTimes[event.semanticKey].map {
+            monotonicNow >= $0 && monotonicNow - $0 < Self.duplicateTTL
+        } ?? false
+        if duplicate {
+            if let enriched = reducer.enrichMetadata(current, event: event) { sessions[event.sessionID] = enriched }
+            pruneIdleSessions(at: now)
+            return focusedSnapshot(at: now)
+        }
+
         let transition = reducer.reduce(current, event: event)
         if let session = transition.session { sessions[event.sessionID] = session }
+        if transition.didMakeProgress || transition.session != current {
+            recentEventTimes[event.semanticKey] = monotonicNow
+            recentEventOrder.append(event.semanticKey)
+            trimRecentEvents()
+        }
+
+        pruneIdleSessions(at: now)
         return focusedSnapshot(at: now)
     }
 
     func select(sessionID: String?) { selectedSessionID = sessionID }
+
+    func currentSnapshot(now: Date = Date()) -> ActivitySnapshot {
+        pruneIdleSessions(at: now)
+        return focusedSnapshot(at: now)
+    }
+
+    private func pruneRecentEvents(at now: UInt64) {
+        let expired = recentEventOrder.filter { key in
+            guard let recorded = recentEventTimes[key] else { return true }
+            return now < recorded || now - recorded >= Self.duplicateTTL
+        }
+        guard !expired.isEmpty else { return }
+        let expiredSet = Set(expired)
+        for key in expired { recentEventTimes.removeValue(forKey: key) }
+        recentEventOrder.removeAll { expiredSet.contains($0) }
+    }
+
+    private func trimRecentEvents() {
+        while recentEventOrder.count > Self.maximumRecentEvents {
+            recentEventTimes.removeValue(forKey: recentEventOrder.removeFirst())
+        }
+    }
+
+    private func pruneIdleSessions(at now: Date) {
+        let expired = sessions.values.filter { session in
+            guard session.id != selectedSessionID, !session.isRetainable else { return false }
+            let age = now.timeIntervalSince(session.lastActivityAt)
+            return age >= Self.idleRetention
+        }
+        for session in expired { sessions.removeValue(forKey: session.id) }
+    }
 
     private func focusedSnapshot(at now: Date) -> ActivitySnapshot {
         focusPolicy.focused(sessions: Array(sessions.values), explicitlySelectedID: selectedSessionID, now: now)?.snapshot

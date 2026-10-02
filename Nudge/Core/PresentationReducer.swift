@@ -1,5 +1,7 @@
+import Foundation
+
 struct PresentationReducer {
-    func reduce(_ state: PresentationState, _ input: PresentationInput) -> PresentationTransition {
+    func reduce(_ state: PresentationState, _ input: PresentationInput, now: Date = Date()) -> PresentationTransition {
         var next = state
         var effects: [PresentationEffect] = []
 
@@ -11,21 +13,54 @@ struct PresentationReducer {
             next.feedbackGeneration += 1
             effects.append(.cancel(.feedback))
 
-            if snapshot.phase == .completed,
-               next.consumedCompletionTurnID != Self.completionKey(snapshot) {
-                next.consumedCompletionTurnID = Self.completionKey(snapshot)
-                next.transientPhase = .completed
-                next.transientGeneration += 1
-                effects.append(.schedule(.transient, after: .seconds(3.2), generation: next.transientGeneration))
-                effects.append(.celebrate)
-            } else if snapshot.phase == .failed,
-                      next.consumedFailureTurnID != Self.completionKey(snapshot) {
-                next.consumedFailureTurnID = Self.completionKey(snapshot)
-                next.transientPhase = .failed
-                next.transientGeneration += 1
-                effects.append(.schedule(.transient, after: .seconds(5), generation: next.transientGeneration))
+            if snapshot.phase == .completed {
+                let key = Self.completionKey(snapshot)
+                if !next.consumedCompletionKeys.contains(key) {
+                    Self.remember(key, in: &next.consumedCompletionKeys)
+                    next.consumedCompletionTurnID = key
+                    if state.isSleeping || snapshotOccurredBeforeWake(snapshot, state: state) {
+                        next.transientPhase = nil
+                        next.transientPresentationKey = nil
+                        next.transientGeneration += 1
+                        effects.append(.cancel(.transient))
+                    } else {
+                        next.transientPhase = .completed
+                        next.transientPresentationKey = key
+                        next.transientGeneration += 1
+                        effects.append(.schedule(.transient, after: .seconds(3.2), generation: next.transientGeneration))
+                        effects.append(.celebrate)
+                    }
+                } else if next.transientPresentationKey != key {
+                    next.transientPhase = nil
+                    next.transientPresentationKey = nil
+                    next.transientGeneration += 1
+                    effects.append(.cancel(.transient))
+                }
+            } else if snapshot.phase == .failed {
+                let key = Self.completionKey(snapshot)
+                if !next.consumedFailureKeys.contains(key) {
+                    Self.remember(key, in: &next.consumedFailureKeys)
+                    next.consumedFailureTurnID = key
+                    if state.isSleeping || snapshotOccurredBeforeWake(snapshot, state: state) {
+                        next.transientPhase = nil
+                        next.transientPresentationKey = nil
+                        next.transientGeneration += 1
+                        effects.append(.cancel(.transient))
+                    } else {
+                        next.transientPhase = .failed
+                        next.transientPresentationKey = key
+                        next.transientGeneration += 1
+                        effects.append(.schedule(.transient, after: .seconds(5), generation: next.transientGeneration))
+                    }
+                } else if next.transientPresentationKey != key {
+                    next.transientPhase = nil
+                    next.transientPresentationKey = nil
+                    next.transientGeneration += 1
+                    effects.append(.cancel(.transient))
+                }
             } else if snapshot.phase != state.snapshot.phase {
                 next.transientPhase = nil
+                next.transientPresentationKey = nil
                 next.transientGeneration += 1
                 effects.append(.cancel(.transient))
             }
@@ -50,6 +85,7 @@ struct PresentationReducer {
             next.pinnedOpen = false
             next.peekVisible = false
             next.transientPhase = nil
+            next.transientPresentationKey = nil
             next.peekGeneration += 1
             next.collapseGeneration += 1
             next.transientGeneration += 1
@@ -115,6 +151,7 @@ struct PresentationReducer {
                     return PresentationTransition(state: state)
                 }
                 next.transientPhase = nil
+                next.transientPresentationKey = nil
                 if next.pointerInside { next.peekVisible = true }
             }
 
@@ -126,6 +163,7 @@ struct PresentationReducer {
             next.pointerInside = false
             next.peekVisible = false
             next.transientPhase = nil
+            next.transientPresentationKey = nil
             next.peekGeneration += 1
             next.collapseGeneration += 1
             next.transientGeneration += 1
@@ -134,7 +172,9 @@ struct PresentationReducer {
         case .wake:
             guard next.isSleeping else { return PresentationTransition(state: state) }
             next.isSleeping = false
+            next.lastWakeAt = Date(timeIntervalSince1970: floor(now.timeIntervalSince1970 * 1_000) / 1_000)
             next.transientPhase = nil
+            next.transientPresentationKey = nil
             next.transientGeneration += 1
             effects.append(.cancel(.transient))
         }
@@ -143,6 +183,15 @@ struct PresentationReducer {
     }
 
     private static func completionKey(_ snapshot: ActivitySnapshot) -> String {
-        "\(snapshot.sessionID)|\(snapshot.turnID)"
+        [snapshot.sessionID, snapshot.turnID].map { "\($0.utf8.count):\($0)" }.joined()
+    }
+
+    private static func remember(_ key: String, in values: inout [String]) {
+        values.append(key)
+        if values.count > 128 { values.removeFirst(values.count - 128) }
+    }
+
+    private func snapshotOccurredBeforeWake(_ snapshot: ActivitySnapshot, state: PresentationState) -> Bool {
+        state.lastWakeAt != .distantPast && snapshot.observedAt <= state.lastWakeAt
     }
 }

@@ -68,6 +68,11 @@ final class AppState: ObservableObject {
         if !isDemoMode { dispatch(.snapshotChanged(snapshot)) }
     }
 
+    func reconcileLiveSnapshotAfterWake(_ snapshot: ActivitySnapshot) {
+        latestLiveSnapshot = snapshot
+        if !isDemoMode { dispatch(.snapshotChanged(snapshot)) }
+    }
+
     func setSocketStatus(_ status: String) { socketStatus = status }
     func setIntegrationStatus(_ status: String) { integrationStatus = status }
     var hookObservationStatus: String {
@@ -109,6 +114,10 @@ final class AppState: ObservableObject {
     func installCodexHooks() {
         let host = integrationHost
         let target = configurationTarget(for: host)
+        if let issue = target.resolutionIssue {
+            integrationStatus = issue
+            return
+        }
         guard confirmHookChange(
             title: "Install Codex hooks?",
             message: "Nudge will add six local lifecycle hooks to:\n\(target.hooksFile.path)\n\nExisting handlers will be preserved. An existing file is backed up before it changes. Review and trust the exact hook definition in Codex afterward."
@@ -128,9 +137,13 @@ final class AppState: ObservableObject {
     func removeCodexHooks() {
         let host = integrationHost
         let target = configurationTarget(for: host)
+        if let issue = target.resolutionIssue {
+            integrationStatus = issue
+            return
+        }
         guard confirmHookChange(
             title: "Remove Nudge hooks?",
-            message: "Nudge will remove only hook handlers owned by its exact helper command from:\n\(target.hooksFile.path)\n\nForeign handlers and existing backup files will remain."
+            message: "Nudge will remove only hook handlers owned by its exact helper command from:\n\(target.hooksFile.path)\n\nA private exact backup is created before the change. Foreign handlers and earlier backups remain."
         ) else { return }
         Task.detached(priority: .userInitiated) { [weak self] in
             let helper = BridgeHelperInstaller().installedHelperURL

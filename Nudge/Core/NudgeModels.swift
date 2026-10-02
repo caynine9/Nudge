@@ -129,10 +129,23 @@ struct ActivitySnapshot: Equatable, Sendable {
     let currentTool: ToolActivity?
     let activityLabel: String
     let detail: String
+    let observedAt: Date
+
+    init(sessionID: String, turnID: String, projectLabel: String, phase: SessionPhase,
+         currentTool: ToolActivity?, activityLabel: String, detail: String, observedAt: Date = Date()) {
+        self.sessionID = sessionID
+        self.turnID = turnID
+        self.projectLabel = projectLabel
+        self.phase = phase
+        self.currentTool = currentTool
+        self.activityLabel = activityLabel
+        self.detail = detail
+        self.observedAt = observedAt
+    }
 
     static let empty = Self(
         sessionID: "", turnID: "", projectLabel: "Codex", phase: .idle,
-        currentTool: nil, activityLabel: "Ready", detail: "Waiting for local Codex activity."
+        currentTool: nil, activityLabel: "Ready", detail: "Waiting for local Codex activity.", observedAt: .distantPast
     )
 
     static func demo(turn: Int, phase: SessionPhase) -> Self {
@@ -153,7 +166,8 @@ struct ActivitySnapshot: Equatable, Sendable {
                 ? ToolActivity(category: .test, summary: "Running tests", symbol: "checkmark.circle")
                 : nil,
             activityLabel: activity,
-            detail: phase.detail
+            detail: phase.detail,
+            observedAt: Date()
         )
     }
 }
@@ -188,8 +202,12 @@ struct PresentationState: Equatable {
     var feedback: InteractionFeedback?
     var feedbackGeneration = 0
     var transientPhase: SessionPhase?
+    var transientPresentationKey: String?
     var consumedCompletionTurnID: String?
     var consumedFailureTurnID: String?
+    var consumedCompletionKeys: [String] = []
+    var consumedFailureKeys: [String] = []
+    var lastWakeAt = Date.distantPast
     var peekGeneration = 0
     var collapseGeneration = 0
     var transientGeneration = 0

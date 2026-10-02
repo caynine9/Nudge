@@ -1,0 +1,2 @@
+{"session_id":"edge-session-long","turn_id":"opaque:turn/long","cwd":"/tmp/placeholder-project","hook_event_name":"PreToolUse","tool_name":"Bash","tool_use_id":"long-tool"}
+{"session_id":"edge-session-long","turn_id":"opaque:turn/long","cwd":"/tmp/renamed-project","hook_event_name":"PreToolUse","tool_name":"Bash","tool_use_id":"long-tool"}

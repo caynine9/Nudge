@@ -32,9 +32,17 @@ struct CodexHookInstaller {
     }
 
     private func mutate(installing: Bool) -> HookInstallResult {
+        if let issue = target.resolutionIssue { return .unsupportedConfiguration(issue) }
         let configURL = target.hooksFile
         do {
-            try Self.ensureDirectory(target.codexHome, mode: 0o700)
+            var targetInfo = stat()
+            if lstat(target.codexHome.path, &targetInfo) != 0 {
+                guard errno == ENOENT else { return .permissionDenied }
+                guard installing else { return .notInstalled }
+                try Self.ensureDirectory(target.codexHome, mode: 0o700)
+            } else if (targetInfo.st_mode & S_IFMT) != S_IFDIR || targetInfo.st_uid != getuid() {
+                return .permissionDenied
+            }
             let lock = try Self.lockFile(configURL.appendingPathExtension("nudge.lock"))
             defer { flock(lock, LOCK_UN); Darwin.close(lock) }
 
@@ -66,30 +74,28 @@ struct CodexHookInstaller {
                 guard let groups = hooks[key] as? [[String: Any]] ?? (hooks[key] == nil ? [] : nil) else {
                     return .unsupportedConfiguration("The \(key) hook group has an unsupported shape.")
                 }
-                var foundOwned = false
+                let expectedHandler = Self.handler(command: command, event: event)
+                var foundCanonicalOwned = false
                 var rewritten: [[String: Any]] = []
                 for var group in groups {
                     guard var handlers = group["hooks"] as? [[String: Any]] else {
                         return .unsupportedConfiguration("A \(key) matcher group has an unsupported handler list.")
                     }
                     let matching = handlers.indices.filter { Self.isOwned(handlers[$0], command: command) }
+                    let canonicalOwnedGroup = Set(group.keys) == ["hooks"] && handlers.count == 1 && matching.count == 1
+                        && NSDictionary(dictionary: handlers[matching[0]]).isEqual(to: expectedHandler)
+                    if installing && canonicalOwnedGroup {
+                        foundCanonicalOwned = true
+                        rewritten.append(group)
+                        continue
+                    }
                     var removedOwnedFromGroup = false
                     if !matching.isEmpty {
-                        if matching.count > 1 { changed = true }
                         for index in matching.reversed() {
-                            if foundOwned || !installing {
-                                handlers.remove(at: index)
-                                removedOwnedFromGroup = true
-                                changed = true
-                            } else {
-                                foundOwned = true
-                                let expected = Self.handler(command: command, event: event)
-                                if !NSDictionary(dictionary: handlers[index]).isEqual(to: expected) {
-                                    handlers[index] = expected
-                                    changed = true
-                                }
-                            }
+                            handlers.remove(at: index)
+                            removedOwnedFromGroup = true
                         }
+                        changed = true
                         group["hooks"] = handlers
                     }
                     if handlers.isEmpty, removedOwnedFromGroup, Set(group.keys) == ["hooks"] {
@@ -97,7 +103,7 @@ struct CodexHookInstaller {
                     }
                     rewritten.append(group)
                 }
-                if installing && !foundOwned {
+                if installing && !foundCanonicalOwned {
                     rewritten.append(["hooks": [Self.handler(command: command, event: event)]])
                     changed = true
                 }
@@ -111,9 +117,9 @@ struct CodexHookInstaller {
             catch { return .failed("Could not serialize Codex hooks.") }
 
             let backupPath: String?
-            if installing, let original {
+            if let original {
                 do { backupPath = try Self.createBackup(original, for: target, directory: backupDirectory) }
-                catch { return .failed("Could not create a protected configuration backup.") }
+                catch { return .failed("Could not create a protected configuration backup; the original was not changed.") }
             } else {
                 backupPath = nil
             }
@@ -237,6 +243,7 @@ struct CodexHookInstaller {
             .appendingPathComponent("Library/Application Support/Nudge/Backups", isDirectory: true)
         try ensureDirectory(appSupport.deletingLastPathComponent(), mode: 0o700)
         try ensureDirectory(appSupport, mode: 0o700)
+        guard chmod(appSupport.path, mode_t(0o700)) == 0 else { throw FileMutationError.permissionDenied }
         let timestamp = Int(Date().timeIntervalSince1970)
         let name = "hooks-\(target.host.rawValue)-\(timestamp)-\(UUID().uuidString).json.bak"
         let url = appSupport.appendingPathComponent(name)

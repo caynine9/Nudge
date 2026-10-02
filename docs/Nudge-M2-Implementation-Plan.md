@@ -1,10 +1,10 @@
 # Nudge — Implementation Plan M2: Codex Edge-Case Hardening
 
-Tanggal: **2 Oktober 2026**. Status: **plan siap ditinjau; implementasi M2 belum dimulai**.
+Tanggal: **2 Oktober 2026**. Status: **implementasi source dan fixture M2 selesai; verifikasi live/manual developer masih pending**. Plan ini ditulis sebelum pelaksanaan; hasil aktual dan batasnya tercatat di [M2 verification handoff](Nudge-M2-Verification.md).
 
 Sumber kebenaran: [project brief](Nudge-Project-Brief.md), bagian 6, 45, dan milestone M2; [AGENTS.md](../AGENTS.md). Baseline implementasi dan acceptance M1 dicatat dalam [M1 verification](Nudge-M1-Verification.md) dan [M1 contract](Nudge-M1-Codex-Contract.md).
 
-Permintaan sesi ini adalah membuat plan. Perubahan sesi ini hanya dokumen ini; tidak menjalankan build/test aplikasi, memulai live turn, memasang hooks, atau mengubah konfigurasi Codex nyata.
+Pengguna kemudian secara eksplisit menginstruksikan pelaksanaan M2 sebelum M1 live verification selesai. Urutan itu dicatat sebagai override; M1 belum dianggap lulus. Implementasi tidak memulai live turn, memasang hooks, atau mengubah konfigurasi Codex nyata.
 
 ## 1. Hasil yang dituju dan batas fase
 
@@ -44,7 +44,7 @@ Pemeriksaan source pada tanggal plan menemukan:
 | Pending | Waiting phases tersedia untuk demo/focus | Session domain belum memiliki pending identity atau resolution rules |
 | Tests | M1 mencatat 28 tests passed serta Release build passed | Hasil historis; tidak dijalankan ulang untuk sesi plan dan bukan bukti live host |
 
-M1 acceptance masih **pending**: Desktop new/resumed, CLI, trust/config, Nudge-unavailable, dan native QA belum ditandai lulus developer. Pembuatan plan M2 diperbolehkan sekarang. Sebelum eksekusi M2, tinjau handoff M1 dan catat hasil developer, atau instruksi eksplisit pengguna yang mengubah urutan. Instruksi urutan tidak mengubah status bukti host menjadi passed.
+M1 acceptance masih **pending**: Desktop new/resumed, CLI, trust/config, Nudge-unavailable, dan native QA belum ditandai lulus developer. Instruksi eksplisit untuk mulai M2 mengubah urutan kerja, tetapi tidak mengubah status bukti host menjadi passed. M2 source dapat ditinjau; verifikasi manual tetap menjadi gate sebelum acceptance dan sebelum M3.
 
 ## 3. Kontrak yang diverifikasi dan yang masih perlu bukti
 
@@ -233,7 +233,8 @@ Trade-off: domain pending ditambahkan lebih dahulu supaya M3 memakai invariants 
 | Nudge/Core/Reducer/SessionReducer.swift | Opaque turn policy, tool tombstones, lifecycle/pending reconciliation |
 | Nudge/Core/NudgeModels.swift | Snapshot/transition identity, consumed effects, sleep restoration state |
 | Nudge/Core/Reducer/FocusPolicy.swift | Quiet/waiting stability dan retention/focus interaction |
-| Nudge/Services/CodexEventMonitor.swift | TTL duplicate cache, metadata merge, retained ledger, current snapshot/revision API |
+| Nudge/Services/CodexEventMonitor.swift | TTL duplicate cache, metadata merge, retained ledger, current snapshot API |
+| Nudge/Services/CodexEventIngress.swift, Nudge/IPC/UnixSocketTransport.swift | Ordered actor ingress and bounded socket-delivery barrier before wake snapshot |
 | Nudge/Core/PresentationReducer.swift | Transition-driven effects, focus/wake/sleep replay protection |
 | Nudge/App/AppState.swift | Ordered UI update, safe restore/effect scheduling, resolver errors |
 | Nudge/App/NudgeAppDelegate.swift | Serial event delivery dan monitor wake reconciliation |
@@ -242,15 +243,14 @@ Trade-off: domain pending ditambahkan lebih dahulu supaya M3 memakai invariants 
 | Nudge/Integration/Codex/Hooks/CodexHookInstaller.swift | Canonical ownership/matcher handling, backup uninstall, deterministic failure seam |
 | Nudge/Integration/Codex/Hooks/CodexConfigurationResolver.swift | Invalid-root errors dan independent target provenance |
 | NudgeCoreTests/SessionReducerTests.swift, FocusPolicyTests.swift, PresentationReducerTests.swift | Domain/focus/presentation regressions dan fake clock |
-| NudgeCoreTests/SessionLifecycleTests.swift (baru) | Pending relevance, quiet lifecycle, retention boundary |
-| NudgeIntegrationTests/CodexEventMonitorTests.swift (baru) | Ingress, TTL/eviction, enrichment, ordered snapshot/transition integration |
-| NudgeIntegrationTests/HookInstallerTests.swift, WireAdapterTests.swift, BridgeFailureTests.swift | Config preservation, Stop/privacy, unavailable regression |
+| NudgeIntegrationTests/CodexEventIngressTests.swift, SocketTransportTests.swift | Ordered ingress and socket-delivery barrier before wake reconciliation |
+| NudgeIntegrationTests/HookInstallerTests.swift, WireAdapterTests.swift | Config preservation, Stop/privacy, monitor duplicate/enrichment, dan failure regression |
 | NudgeIntegrationTests/Fixtures/Codex/edge-cases/ (baru) | Sanitized sequence fixtures dan provenance README |
 | Nudge.xcodeproj/project.pbxproj | Membership source/tests/resources baru pada target yang benar |
 | docs/Nudge-M1-Codex-Contract.md | Koreksi kontrak/assumption M1 dengan tanggal/evidence; pertahankan provenance historis |
-| docs/Nudge-M2-Implementation-Plan.md, docs/Nudge-M2-Verification.md (baru saat implementasi) | Hasil, batas coverage, developer handoff |
+| docs/Nudge-M2-Implementation-Plan.md, docs/Nudge-M2-Verification.md | Rencana, hasil, batas coverage, developer handoff |
 
-Conditional only: Nudge/IPC/WireEnvelope.swift, NudgeCoreTests/WireValidationTests.swift jika addendum schema terverifikasi diperlukan; Nudge/IPC/UnixSocketTransport.swift bila serial ingress memerlukan perubahan callback; Nudge/UI/NotchPanelController.swift bila wake review membuktikan perbaikan panel lifecycle diperlukan. Tidak merombak geometry, navigator, playground UX, atau folder structure. Perubahan di luar daftar memerlukan alasan tertulis sebelum edit.
+Schema wire v1 tidak berubah. `Nudge/App/NudgeAppDelegate.swift` menjalankan socket drain/barrier di task background dan menerapkan snapshot di main actor. `Nudge/UI/NotchRootView.swift` dan `Nudge/UI/Nudgie.swift` hanya meneruskan sleep eligibility dan membatalkan hop tertunda. Tidak ada perubahan pada NotchPanelController atau kontrak wire.
 
 ## 11. Urutan implementasi satu fase
 

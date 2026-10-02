@@ -9,6 +9,7 @@ final class NudgeAppDelegate: NSObject, NSApplicationDelegate {
     private var sleepObserver: NSObjectProtocol?
     private var wakeObserver: NSObjectProtocol?
     private var socketServer: NudgeSocketServer?
+    private var eventIngress: CodexEventIngress?
     private let eventMonitor = CodexEventMonitor()
     private let workspaceCenter = NSWorkspace.shared.notificationCenter
 
@@ -17,12 +18,13 @@ final class NudgeAppDelegate: NSObject, NSApplicationDelegate {
         let state = AppState.shared
         panelController = NotchPanelController(appState: state)
         let monitor = eventMonitor
-        let server = NudgeSocketServer { envelope in
-            Task {
-                let snapshot = await monitor.consume(envelope)
-                await MainActor.run { AppState.shared.updateLiveSnapshot(snapshot) }
+        let ingress = CodexEventIngress(monitor: monitor) { snapshot in
+            await MainActor.run {
+                AppState.shared.updateLiveSnapshot(snapshot)
             }
         }
+        eventIngress = ingress
+        let server = NudgeSocketServer { envelope in ingress.submit(envelope) }
         socketServer = server
         Task.detached(priority: .userInitiated) {
             do {
@@ -63,6 +65,9 @@ final class NudgeAppDelegate: NSObject, NSApplicationDelegate {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
+                if let snapshot = await self?.snapshotAfterDrainingSocketEvents() {
+                    AppState.shared.reconcileLiveSnapshotAfterWake(snapshot)
+                }
                 AppState.shared.dispatch(.wake)
                 self?.panelController?.wake()
             }
@@ -75,7 +80,19 @@ final class NudgeAppDelegate: NSObject, NSApplicationDelegate {
         [sleepObserver, wakeObserver].compactMap { $0 }.forEach { workspaceCenter.removeObserver($0) }
         socketServer?.stop()
         socketServer = nil
+        eventIngress?.finish()
+        eventIngress = nil
         panelController?.shutdown()
         panelController = nil
+    }
+
+    private func snapshotAfterDrainingSocketEvents() async -> ActivitySnapshot? {
+        let server = socketServer
+        let ingress = eventIngress
+        return await Task.detached(priority: .userInitiated) {
+            server?.flushEvents()
+            guard let ingress else { return nil }
+            return await ingress.snapshotAfterPendingEvents()
+        }.value
     }
 }

@@ -32,6 +32,16 @@ final class FocusPolicyTests: XCTestCase {
         XCTAssertEqual(FocusPolicy().focused(sessions: [interrupted], now: now)?.id, "stopped")
     }
 
+    func testPendingInteractionHasAttentionPriorityInDomain() {
+        let now = Date(timeIntervalSince1970: 7_000)
+        var waiting = make("question", .thinking, now.addingTimeInterval(-20))
+        waiting.pendingInteraction = PendingInteraction(id: "q", kind: .question, toolCallID: "tool-q")
+        let working = make("working", .toolUse, now)
+        XCTAssertEqual(FocusPolicy().focused(sessions: [working, waiting], now: now)?.id, "question")
+        XCTAssertEqual(waiting.snapshot.phase, .waitingInput)
+        XCTAssertNil(waiting.snapshot.currentTool)
+    }
+
     private func make(_ id: String, _ phase: SessionPhase, _ at: Date) -> CodexSessionState {
         CodexSessionState(id: id, turnID: "turn-\(id)", projectLabel: id, phase: phase,
                           activeTools: [:], lastActivityAt: at, completedTurnIDs: [])

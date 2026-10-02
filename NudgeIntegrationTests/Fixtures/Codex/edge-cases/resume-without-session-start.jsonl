@@ -1,0 +1,1 @@
+{"session_id":"edge-session-resume","turn_id":"opaque:turn/resumed","cwd":"/tmp/nudge-synthetic","hook_event_name":"PreToolUse","tool_name":"Bash","tool_use_id":"resume-tool"}

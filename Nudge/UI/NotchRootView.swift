@@ -187,7 +187,8 @@ struct NotchRootView: View {
     }
 
     private var mascot: some View {
-        Nudgie(pose: MascotPose(phase: phase), celebrationPulse: appState.celebrationPulse, reduceMotion: appState.reduceMotion)
+        Nudgie(pose: MascotPose(phase: phase), celebrationPulse: appState.celebrationPulse,
+               reduceMotion: reduceMotion, isSleeping: appState.presentation.isSleeping)
     }
 
     @ViewBuilder

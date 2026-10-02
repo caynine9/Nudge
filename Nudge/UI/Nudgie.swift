@@ -57,8 +57,10 @@ struct Nudgie: View {
     let pose: MascotPose
     let celebrationPulse: Int
     let reduceMotion: Bool
+    let isSleeping: Bool
 
     @State private var hop = 0.0
+    @State private var hopTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -81,15 +83,24 @@ struct Nudgie: View {
         .frame(width: 31, height: 28)
         .offset(y: hop)
         .onChange(of: celebrationPulse) { _, pulse in
-            guard pulse > 0, !reduceMotion else { return }
+            guard pulse > 0, !reduceMotion, !isSleeping else { return }
+            hopTask?.cancel()
             withAnimation(.spring(response: 0.22, dampingFraction: 0.48)) { hop = -6 }
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(290))
+            hopTask = Task { @MainActor in
+                do { try await Task.sleep(for: .milliseconds(290)) }
+                catch { return }
                 withAnimation(.spring(response: 0.24, dampingFraction: 0.72)) { hop = 0 }
+                hopTask = nil
             }
         }
         .onChange(of: reduceMotion) { _, enabled in
-            if enabled { hop = 0 }
+            if enabled { cancelHop() }
+        }
+        .onChange(of: isSleeping) { _, sleeping in
+            if sleeping { cancelHop() }
+        }
+        .onDisappear {
+            cancelHop()
         }
         .accessibilityHidden(true)
     }
@@ -98,6 +109,14 @@ struct Nudgie: View {
         Capsule()
             .fill(Color(red: 0.08, green: 0.12, blue: 0.18))
             .frame(width: 3.2, height: pose == .failure ? 2.4 : 5.4)
+    }
+
+    private func cancelHop() {
+        hopTask?.cancel()
+        hopTask = nil
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { hop = 0 }
     }
 }
 

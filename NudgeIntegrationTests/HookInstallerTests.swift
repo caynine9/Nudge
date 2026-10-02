@@ -83,7 +83,11 @@ final class HookInstallerTests: XCTestCase {
         XCTAssertEqual(ownedCount, 1)
         XCTAssertTrue(fixedGroups.contains { ($0["hooks"] as? [[String: Any]])?.contains(where: { $0["command"] as? String == "other-hook" }) == true })
 
+        let beforeUninstall = try Data(contentsOf: target.hooksFile)
         XCTAssertEqual(installer.uninstall(), .removed)
+        let preservedBackups = try FileManager.default.contentsOfDirectory(at: backups, includingPropertiesForKeys: nil)
+            .map { try Data(contentsOf: $0) }
+        XCTAssertTrue(preservedBackups.contains(beforeUninstall), "uninstall mutation must leave an exact pre-change backup")
         let removed = try JSONSerialization.jsonObject(with: Data(contentsOf: target.hooksFile)) as! [String: Any]
         XCTAssertTrue(((removed["hooks"] as! [String: Any])["PreToolUse"] as! [[String: Any]])
             .contains { ($0["hooks"] as? [[String: Any]])?.contains(where: { $0["command"] as? String == "other-hook" }) == true })
@@ -111,6 +115,7 @@ final class HookInstallerTests: XCTestCase {
 
     func testResolverHonorsCustomCodexHomeWithoutReadingRealUserConfig() {
         let custom = root.appendingPathComponent("custom", isDirectory: true)
+        try? FileManager.default.createDirectory(at: custom, withIntermediateDirectories: true)
         let resolved = CodexConfigurationResolver().target(for: .cli,
             environment: ["CODEX_HOME": custom.path], homeDirectory: root)
         XCTAssertEqual(resolved.hooksFile, custom.appendingPathComponent("hooks.json"))
@@ -122,6 +127,54 @@ final class HookInstallerTests: XCTestCase {
             environment: ["CODEX_HOME": "/ignored"], homeDirectory: root, explicitCodexHome: custom)
         XCTAssertEqual(explicit.hooksFile, resolved.hooksFile)
         XCTAssertEqual(explicit.confidence, "user-selected")
+
+        let relative = CodexConfigurationResolver().target(for: .cli,
+            environment: ["CODEX_HOME": "relative/codex"], homeDirectory: root)
+        XCTAssertNotNil(relative.resolutionIssue)
+        XCTAssertEqual(relative.codexHome, root.appendingPathComponent(".codex", isDirectory: true))
+
+        let absent = CodexConfigurationResolver().target(for: .cli,
+            environment: ["CODEX_HOME": root.appendingPathComponent("missing", isDirectory: true).path],
+            homeDirectory: root)
+        XCTAssertNotNil(absent.resolutionIssue)
+    }
+
+    func testOwnedHookInRestrictiveMatcherIsMovedToUnfilteredGroup() throws {
+        XCTAssertTrue(isInstalled(installer.install()))
+        var rootObject = try JSONSerialization.jsonObject(with: Data(contentsOf: target.hooksFile)) as! [String: Any]
+        var hooks = rootObject["hooks"] as! [String: Any]
+        var groups = hooks["PreToolUse"] as! [[String: Any]]
+        let ownedIndex = try XCTUnwrap(groups.firstIndex { group in
+            (group["hooks"] as? [[String: Any]])?.contains(where: { ($0["command"] as? String)?.contains("NudgeBridge") == true }) == true
+        })
+        var ownedGroup = groups.remove(at: ownedIndex)
+        ownedGroup["matcher"] = "^Bash$"
+        groups.append(ownedGroup)
+        hooks["PreToolUse"] = groups
+        rootObject["hooks"] = hooks
+        try writeJSON(rootObject)
+
+        XCTAssertTrue(isInstalled(installer.install()))
+        let updated = try JSONSerialization.jsonObject(with: Data(contentsOf: target.hooksFile)) as! [String: Any]
+        let updatedGroups = (updated["hooks"] as! [String: Any])["PreToolUse"] as! [[String: Any]]
+        let ownedGroups = updatedGroups.filter { group in
+            (group["hooks"] as? [[String: Any]])?.contains(where: { ($0["command"] as? String)?.contains("NudgeBridge") == true }) == true
+        }
+        XCTAssertEqual(ownedGroups.count, 1)
+        XCTAssertNil(ownedGroups[0]["matcher"])
+        XCTAssertTrue(updatedGroups.contains { ($0["matcher"] as? String) == "^Bash$" })
+    }
+
+    func testBackupFailureLeavesConfigUntouchedAndUninstallDoesNotCreateMissingRoot() throws {
+        let original = Data(#"{"description":"keep","hooks":{"SessionStart":[]}}"#.utf8)
+        try original.write(to: target.hooksFile)
+        try Data("not-a-directory".utf8).write(to: backups)
+        XCTAssertEqual(installer.install(), .failed("Could not create a protected configuration backup; the original was not changed."))
+        XCTAssertEqual(try Data(contentsOf: target.hooksFile), original)
+
+        let absent = CodexConfigurationTarget(host: .cli, codexHome: root.appendingPathComponent("absent"), confidence: "temporary")
+        XCTAssertEqual(CodexHookInstaller(target: absent, helperPath: helper, backupDirectory: backups).uninstall(), .notInstalled)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: absent.codexHome.path))
     }
 
     private var installer: CodexHookInstaller {

@@ -132,10 +132,12 @@ final class NudgeSocketServer: @unchecked Sendable {
     let path: String
     private let handler: EventHandler
     private let queue = DispatchQueue(label: "com.nudge.socket-listener", qos: .userInitiated)
+    private let eventDeliveryQueue = DispatchQueue(label: "com.nudge.socket-events", qos: .userInitiated)
     private var descriptor: Int32 = -1
     private var source: DispatchSourceRead?
     private var ownedSocketIdentity: (dev_t, ino_t)?
     private let maximumConnections = DispatchSemaphore(value: 16)
+    private let inFlightConnections = DispatchGroup()
 
     init(path: String = "/tmp/nudge-\(getuid()).sock", handler: @escaping EventHandler) {
         self.path = path
@@ -186,6 +188,12 @@ final class NudgeSocketServer: @unchecked Sendable {
         removeOwnedSocketPath()
     }
 
+    func flushEvents() {
+        queue.sync { acceptAvailableConnections() }
+        inFlightConnections.wait()
+        eventDeliveryQueue.sync {}
+    }
+
     private var statBuffer = stat()
 
     private func prepareSocketPath() throws {
@@ -227,10 +235,12 @@ final class NudgeSocketServer: @unchecked Sendable {
                 Darwin.close(client)
                 continue
             }
+            inFlightConnections.enter()
             DispatchQueue.global(qos: .userInitiated).async { [self] in
                 defer {
                     Darwin.close(client)
                     maximumConnections.signal()
+                    inFlightConnections.leave()
                 }
                 receive(from: client)
             }
@@ -248,7 +258,7 @@ final class NudgeSocketServer: @unchecked Sendable {
             guard length > 0, length <= WireEnvelope.maximumFrameSize else { throw WireError.frameTooLarge }
             let payload = try UnixSocketTransport.readExact(Int(length), descriptor: client, deadline: deadline)
             let envelope = try WireCodec.decode(payload)
-            handler(envelope)
+            eventDeliveryQueue.async { [handler] in handler(envelope) }
         } catch let error as WireError {
             SocketDiagnostics.record(error.diagnosticCode)
         } catch {

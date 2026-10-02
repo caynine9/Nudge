@@ -1,16 +1,48 @@
 import SwiftUI
 
 enum NotchMotion {
-    // One retargetable spring drives size, contour and reveal. Critical damping avoids
-    // overshooting the camera anchor while preserving velocity when direction changes.
+    // Both dimensions share one spring: a small overshoot then a quick settle,
+    // preserving velocity when a user reverses direction before it finishes.
+    static func shellSpring(collapsing: Bool) -> Spring {
+        Spring(response: collapsing ? 0.34 : 0.44, dampingRatio: 0.78)
+    }
+
     static func shell(collapsing: Bool) -> Animation {
-        .spring(response: collapsing ? 0.34 : 0.42, dampingFraction: 1, blendDuration: 0)
+        .spring(shellSpring(collapsing: collapsing))
+    }
+
+    static let contentBlur: CGFloat = 5
+
+    static func pageTransition(reduceMotion: Bool) -> AnyTransition {
+        guard !reduceMotion else { return .identity }
+        let dissolve = AnyTransition.modifier(
+            active: NotchPageDissolve(amount: 1),
+            identity: NotchPageDissolve(amount: 0)
+        )
+        return .asymmetric(
+            insertion: dissolve.animation(.easeInOut(duration: 0.28)),
+            removal: dissolve.animation(.easeOut(duration: 0.14))
+        )
     }
 
     static func contentTransition(reduceMotion: Bool) -> AnyTransition {
         reduceMotion ? .identity : .opacity
     }
 
+}
+
+// The reference softens page changes without moving the shell. Blur is bounded
+// to this small content layer and disappears completely at rest.
+struct NotchPageDissolve: ViewModifier {
+    var amount: CGFloat
+
+    func body(content: Content) -> some View {
+        let amount = min(1, max(0, amount))
+        content
+            .blur(radius: NotchMotion.contentBlur * amount)
+            .opacity(1 - amount)
+            .scaleEffect(1 - 0.015 * amount, anchor: .top)
+    }
 }
 
 enum NotchPalette {

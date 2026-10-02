@@ -100,8 +100,8 @@ final class NotchPanelController {
             notchWidth: geometry.notchWidth,
             notchHeight: geometry.notchHeight,
             compactWidth: geometry.compactWidth,
-            availableWidth: geometry.canvasSize.width,
-            availableHeight: geometry.canvasSize.height,
+            availableWidth: geometry.availableWidth,
+            availableHeight: max(0, geometry.screenFrame.height - 32),
             visibleSizeChanged: { [weak self] size in
                 guard let self, self.hostingGeneration == generation else { return }
                 self.visibleSize = size

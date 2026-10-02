@@ -159,3 +159,43 @@ Verifikasi manual oleh developer (pending):
 1. Relaunch and inspect minimized Thinking/Tool Use: Nudgie must be left of the physical notch and the matching status symbol on the right. Repeat on a standard/external display.
 2. Simulate Done, Failed and Interrupted, and wait for transient expansion to settle where applicable; confirm the minimized orientation stays consistent.
 3. Hover, expand/collapse and repeat with Reduce Motion. Check camera clearance, click behavior and VoiceOver's combined task/status label.
+
+## Width-first motion — 2026-10-02
+
+Opening now follows a continuous width-first path: width begins immediately and reaches its endpoint at 72% of expansion progress; height starts at 12% and settles at 100%. These are progress fractions, not elapsed-time percentages. Their overlap avoids a pause between widening and descending. Closing traverses the same path backward, retracting height before width. One retargetable spring drives progress and linear dimensions; no delayed tasks or permanent loops were added. The animatable frame derives the open endpoint from the current linear sample, avoiding a remembered wider monitor size when opening question/confirmation.
+
+Debug build, geometry/motion fixtures, full-canvas layout fixtures and `git diff --check` passed. Motion fixtures cover exact endpoints, monotonic bounded travel, overlapping axes, continuity at stage boundaries, and no overshoot when opening narrower states. Static layout checks retain all-state notch/fallback size and top-center coverage. Physical perceived smoothness and rapid reversal remain manual checks.
+
+Verifikasi manual oleh developer (pending):
+
+1. Open minimized → peek/expanded. Verify widening leads, height follows before width stops, and there is no pause between the two.
+2. Close, then reverse direction halfway. Check one continuous path, stable top anchor and unchanged final minimized dimensions. Try question/confirmation too.
+3. Enable Reduce Motion mid-transition and repeat on a non-notch display. Verify immediate final geometry and working click-through beside/below the shell.
+
+## User-recorded motion reference — 2026-10-02
+
+Reviewed the user's `Animation nudge.mp4` through frame extraction (30.117 s, 60 fps), including 50 ms samples around opening at 5.50–6.10 s, permission → question at 18.70–19.40 s, question → monitor at 26.30–26.95 s, and collapse at 28.25–28.90 s. The user explicitly clarified this is not an official Vibe Island demo. It is the requested motion reference, not a source of code or artwork.
+
+The implementation now adds bounded content blur/fade during opening, closing and expanded page changes. Page insertion takes 280 ms; removal 140 ms, with up to 5 pt content blur and a subtle 1.5% top-anchored scale. The black shell stays sharp and morphs between the existing target dimensions. Outgoing pages keep their fixed layout inside their identity. Monitor text changes dissolve independently so Nudgie's one-shot celebration retains its identity. Reduce Motion disables spatial/blur transitions. No additional delayed tasks, permanent frame loops or dependencies were added.
+
+Debug build and standalone reducer, geometry/motion and full-canvas layout fixtures passed during this refinement. Full-canvas static renders were inspected for minimized, monitor, permission, question and confirmation on notch geometry plus standard monitor; content and endpoint dimensions remained intact. These checks do not prove native frame pacing, perceptual matching or interrupted-transition behavior.
+
+Verifikasi manual oleh developer (pending):
+
+1. Compare minimized ↔ expanded with the recording: continuous shell movement, content briefly softens then sharpens, no black-window fade or incorrect minimized dimensions. Reverse midway.
+2. Cycle monitor → permission → question → confirmation and working → done → working while open. Check outgoing text keeps its width, the new content becomes sharp, and rapid changes do not leave stale layers or duplicate celebrations.
+3. Toggle Reduce Motion while moving, repeat on a non-notch screen, and check click-through around the visible shell. Record perceived timing against the supplied reference.
+
+## Simultaneous expansion with settling bounce — 2026-10-02
+
+Latest user clarification supersedes the width-first interpretation: the reference expands width and height together, with a small rebound after expand/collapse. Removed the custom two-axis progress mapping and animatable frame. Both dimensions now animate directly with the same native SwiftUI spring (response 0.44 s opening / 0.34 s closing, damping ratio 0.78). Content blur transitions remain. Reduce Motion still places the shell at its endpoint immediately.
+
+The fixed native canvas now reserves 8 pt on each side and 12 pt below the largest endpoint (bounded to the display) so overshoot is not clipped. Target dimensions remain constrained by display geometry independently of that padding. Pointer routing still follows the rendered shell and compact trigger, not the padded canvas.
+
+Debug build, full-canvas endpoint fixtures and updated geometry fixtures passed, as did `git diff --check`. Geometry fixtures sample the actual SwiftUI spring for opening and closing, verify small overshoot and settling, and check all modes/attention variants against canvas bounds on notch and narrow fallback displays. The old width-first assertions were removed. These are mathematical/static checks; native visual feel remains developer QA.
+
+Verifikasi manual oleh developer (pending):
+
+1. Expand and minimize repeatedly. Confirm both dimensions move together, with one small rebound before settling and a stationary top anchor.
+2. Reverse midway and cycle the largest permission state, question and confirmation. Check there is no clipped bottom/side during bounce and all final dimensions stay correct.
+3. Toggle Reduce Motion during movement and check click-through beside/below the shell. Compare rebound strength and timing directly with the supplied video.

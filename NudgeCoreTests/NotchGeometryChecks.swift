@@ -85,6 +85,35 @@ struct NotchGeometryChecks {
                 }
             }
         }
+        // Sample the same native springs used by the view, including their
+        // overshoot. The transparent canvas must contain the visible rebound.
+        for collapsing in [false, true] {
+            let spring = NotchMotion.shellSpring(collapsing: collapsing)
+            let samples = (0...240).map { spring.value(target: 1.0, time: Double($0) / 240) }
+            precondition(samples.max()! > 1.005 && samples.max()! < 1.04,
+                         "Use a visible but restrained settling bounce")
+            precondition(abs(samples.last! - 1) < 0.001, "Spring must settle without an idle loop")
+            for display in [geometry, fallback] {
+                let compact = display.size(for: .collapsed)
+                for mode in NotchPresentation.allCases {
+                    for phase in [SessionPhase.thinking, .waitingPermission, .waitingInput] {
+                        let open = display.size(for: mode, phase: phase)
+                        let start = collapsing ? open : compact
+                        let end = collapsing ? compact : open
+                        for progress in samples {
+                            let size = CGSize(width: start.width + (end.width - start.width) * progress,
+                                              height: start.height + (end.height - start.height) * progress)
+                            let frame = display.frame(forVisibleSize: size)
+                            precondition(size.width > 0 && size.height > 0)
+                            precondition(display.canvasFrame.contains(frame),
+                                         "The native canvas must not clip the spring overshoot")
+                            precondition(frame.maxY == display.canvasFrame.maxY,
+                                         "The top anchor must stay fixed during the bounce")
+                        }
+                    }
+                }
+            }
+        }
         print("Notch geometry and shell fixture checks passed")
     }
 }

@@ -36,13 +36,37 @@ struct NotchRootView: View {
                       height: min(preferred.height, availableHeight))
     }
 
-    // Preserve the monitor subtree through thinking/tool/completion changes.
+    // A semantic page change dissolves its content while the shell keeps moving.
+    // Use the retained content mode so collapsing does not replace a receipt with
+    // the monitor underneath it halfway through the exit animation.
     private var contentIdentity: String {
-        switch phase {
-        case .waitingPermission: "permission"
-        case .waitingInput: "question"
-        default: "monitor"
+        if contentMode == .confirmation {
+            return "confirmation-\((appState.presentation.feedback ?? lastFeedback)?.label ?? "")"
         }
+        switch phase {
+        case .waitingPermission: return "permission"
+        case .waitingInput: return "question"
+        default: return "monitor"
+        }
+    }
+
+    private var expandedPage: some View {
+        VStack(spacing: 0) {
+            if isNotched { Color.clear.frame(height: notchHeight).accessibilityHidden(true) }
+            if contentMode == .confirmation, let feedback = appState.presentation.feedback ?? lastFeedback {
+                confirmation(feedback)
+                    .frame(maxWidth: .infinity).frame(height: 46)
+            } else {
+                content
+                    .padding(.horizontal, isNotched ? 28 : 16)
+                    .padding(.top, 16).padding(.bottom, 14)
+            }
+            Spacer(minLength: 0)
+        }
+        // This frame belongs INSIDE each page identity. The outgoing page keeps
+        // its own width while the new page and shell move to a different size.
+        .frame(width: openSize.width, height: openSize.height, alignment: .top)
+        .animation(nil, value: openSize)
     }
 
     private var contentLayers: some View {
@@ -52,35 +76,20 @@ struct NotchRootView: View {
                 else { minimizedRow.padding(.horizontal, 12) }
             }
             .frame(width: min(compactWidth, availableWidth), height: isNotched ? notchHeight + 2 : 38)
+            .blur(radius: mode != .collapsed && !reduceMotion ? 3 : 0)
             .opacity(mode == .collapsed ? 1 : 0)
             .allowsHitTesting(mode == .collapsed)
             .accessibilityHidden(mode != .collapsed)
             .disabled(mode != .collapsed)
 
-            VStack(spacing: 0) {
-                if isNotched { Color.clear.frame(height: notchHeight).accessibilityHidden(true) }
-                ZStack(alignment: .top) {
-                    if contentMode == .confirmation, let feedback = appState.presentation.feedback ?? lastFeedback {
-                        confirmation(feedback)
-                            .frame(maxWidth: .infinity).frame(height: 46)
-                            .transition(NotchMotion.contentTransition(reduceMotion: reduceMotion))
-                    } else {
-                        content
-                            .padding(.horizontal, isNotched ? 28 : 16)
-                            .padding(.top, 16).padding(.bottom, 14)
-                            .id(contentIdentity)
-                            .transition(NotchMotion.contentTransition(reduceMotion: reduceMotion))
-                    }
-                }
-                Spacer(minLength: 0)
+            ZStack(alignment: .top) {
+                expandedPage
+                    .id(contentIdentity)
+                    .transition(NotchMotion.pageTransition(reduceMotion: reduceMotion))
             }
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: contentIdentity)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: contentMode == .confirmation)
-            // Keep the open layout while closing: text never squeezes into compact width.
-            .frame(width: openSize.width, height: openSize.height, alignment: .top)
-            .animation(nil, value: openSize)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: contentIdentity)
+            .modifier(NotchPageDissolve(amount: mode == .collapsed && !reduceMotion ? 1 : 0))
             .opacity(mode == .collapsed ? 0 : 1)
-            .offset(y: mode == .collapsed && !reduceMotion ? -6 : 0)
             .allowsHitTesting(mode != .collapsed)
             .accessibilityHidden(mode == .collapsed)
             .disabled(mode == .collapsed)
@@ -191,31 +200,38 @@ struct NotchRootView: View {
             Button { appState.openFocusedHost() } label: {
                 HStack(alignment: .top, spacing: 12) {
                     mascot.scaleEffect(0.72).frame(width: 25, height: 28)
-                    VStack(alignment: .leading, spacing: 5) {
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text(PlaygroundScenario.taskTitle)
-                                .font(NotchType.readable(14, weight: .medium)).lineLimit(1)
-                                .foregroundStyle(.white)
-                            Spacer(minLength: 0)
-                            NotchBadge(title: "Codex")
-                            NotchBadge(title: appState.host.title)
-                        }
-                        if let issue = appState.navigationIssue {
-                            Text(issue).font(NotchType.readable(11))
-                                .foregroundStyle(NotchPalette.orange).lineLimit(2)
-                        } else {
-                            Text(PlaygroundScenario.prompt)
-                                .font(NotchType.readable(12)).foregroundStyle(NotchPalette.secondary).lineLimit(1)
-                            if phase == .toolUse {
-                                Text("Writing \(Text("middleware.ts").font(NotchType.code()))")
-                                    .font(NotchType.readable(12)).foregroundStyle(accent).lineLimit(1)
+                    ZStack(alignment: .topLeading) {
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(PlaygroundScenario.taskTitle)
+                                    .font(NotchType.readable(14, weight: .medium)).lineLimit(1)
+                                    .foregroundStyle(.white)
+                                Spacer(minLength: 0)
+                                NotchBadge(title: "Codex")
+                                NotchBadge(title: appState.host.title)
+                            }
+                            if let issue = appState.navigationIssue {
+                                Text(issue).font(NotchType.readable(11))
+                                    .foregroundStyle(NotchPalette.orange).lineLimit(2)
                             } else {
-                                Label(phase.title, systemImage: phase.symbol)
-                                    .font(NotchType.readable(12)).foregroundStyle(accent)
+                                Text(PlaygroundScenario.prompt)
+                                    .font(NotchType.readable(12)).foregroundStyle(NotchPalette.secondary).lineLimit(1)
+                                if phase == .toolUse {
+                                    Text("Writing \(Text("middleware.ts").font(NotchType.code()))")
+                                        .font(NotchType.readable(12)).foregroundStyle(accent).lineLimit(1)
+                                } else {
+                                    Label(phase.title, systemImage: phase.symbol)
+                                        .font(NotchType.readable(12)).foregroundStyle(accent)
+                                }
                             }
                         }
+                        .id(phase)
+                        .transition(NotchMotion.pageTransition(reduceMotion: reduceMotion))
                     }
                 }
+                // Keep Nudgie alive for its one-shot celebration while the text
+                // dissolves between working/done/failure, as in the reference.
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: phase)
                 .padding(.vertical, 5)
                 .padding(.horizontal, 4)
                 .contentShape(Rectangle())

@@ -87,8 +87,11 @@ struct NotchGeometry: Equatable {
         let sizes = NotchPresentation.allCases.flatMap { mode in
             [size(for: mode, phase: .waitingPermission), size(for: mode, phase: .waitingInput)]
         }
-        return CGSize(width: sizes.map(\.width).max() ?? 0,
-                      height: sizes.map(\.height).max() ?? 0)
+        // Leave transparent room for the spring's small overshoot. This margin
+        // must never become the target shell size or its pointer hit region.
+        let canvasWidthLimit = max(0, 2 * min(anchorX - screenFrame.minX, screenFrame.maxX - anchorX) - 8)
+        return CGSize(width: min((sizes.map(\.width).max() ?? 0) + 16, canvasWidthLimit),
+                      height: min((sizes.map(\.height).max() ?? 0) + 12, max(0, screenFrame.height - 20)))
     }
 
     var canvasFrame: CGRect { frame(forVisibleSize: canvasSize) }

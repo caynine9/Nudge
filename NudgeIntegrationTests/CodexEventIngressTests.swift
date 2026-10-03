@@ -44,7 +44,8 @@ final class CodexEventIngressTests: XCTestCase {
         WireEnvelope(schemaVersion: WireEnvelope.currentVersion, source: "codex", event: event,
                      sessionID: "ingress-test", turnID: turn,
                      observedAtMilliseconds: Int64(date.timeIntervalSince1970 * 1_000),
-                     projectLabel: nil, toolCallID: toolID, tool: tool)
+                     projectLabel: nil, toolCallID: toolID, tool: tool,
+                     toolName: event == .preToolUse || event == .postToolUse ? "Bash" : nil)
     }
 }
 

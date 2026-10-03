@@ -135,10 +135,15 @@ struct ActivitySnapshot: Equatable, Sendable {
     let detail: String
     let observedAt: Date
     let turnStartedAt: Date?
+    let pendingInteractions: [PendingInteraction]
+    let pendingInteractionOverflowed: Bool
+
+    var pendingInteraction: PendingInteraction? { pendingInteractions.first }
 
     init(sessionID: String, turnID: String, projectLabel: String, phase: SessionPhase,
          currentTool: ToolActivity?, activityLabel: String, detail: String, observedAt: Date = Date(),
-         turnStartedAt: Date? = nil) {
+         turnStartedAt: Date? = nil, pendingInteractions: [PendingInteraction] = [],
+         pendingInteractionOverflowed: Bool = false) {
         self.sessionID = sessionID
         self.turnID = turnID
         self.projectLabel = projectLabel
@@ -148,6 +153,8 @@ struct ActivitySnapshot: Equatable, Sendable {
         self.detail = detail
         self.observedAt = observedAt
         self.turnStartedAt = turnStartedAt
+        self.pendingInteractions = pendingInteractions
+        self.pendingInteractionOverflowed = pendingInteractionOverflowed
     }
 
     static let empty = Self(
@@ -212,6 +219,7 @@ struct PresentationState: Equatable {
     var pointerInside = false
     var peekVisible = false
     var pinnedOpen = false
+    var showsSessionList = false
     var isSleeping = false
     var feedback: InteractionFeedback?
     var feedbackGeneration = 0
@@ -227,6 +235,7 @@ struct PresentationState: Equatable {
     var transientGeneration = 0
 
     var mode: NotchPresentation {
+        if snapshot.phase.isAttention && showsSessionList { return .expanded }
         if snapshot.phase.isAttention { return .attention }
         if feedback != nil { return .confirmation }
         if transientPhase != nil { return .expanded }
@@ -241,6 +250,7 @@ enum PresentationInput {
     case previewInteractionResolved(ActivitySnapshot, InteractionFeedback)
     case pointerChanged(Bool)
     case togglePinned
+    case toggleSessionList
     case collapse
     case timerElapsed(PresentationTimer, generation: Int)
     case sleep

@@ -1,0 +1,21 @@
+{
+  "session_id": "synthetic-attention-session",
+  "turn_id": "synthetic-question-turn",
+  "cwd": "/tmp/nudge-synthetic-project",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "request_user_input",
+  "tool_use_id": "synthetic-question-call",
+  "tool_input": {
+    "questions": [
+      {
+        "header": "Migration",
+        "question": "Which migration strategy should be used?",
+        "options": [
+          { "label": "Keep compatibility", "description": "Preserve the old fields." },
+          { "label": "Replace now", "description": "Use the new fields." }
+        ]
+      }
+    ],
+    "synthetic_secret": "SYNTHETIC_SECRET_MUST_NOT_REACH_WIRE"
+  }
+}

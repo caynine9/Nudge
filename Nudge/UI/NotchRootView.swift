@@ -193,6 +193,7 @@ struct NotchRootView: View {
 
     private var mascot: some View {
         Nudgie(pose: MascotPose(phase: phase), celebrationPulse: appState.celebrationPulse,
+               attentionPulse: appState.attentionPulse,
                reduceMotion: reduceMotion, isSleeping: appState.presentation.isSleeping)
     }
 
@@ -205,16 +206,96 @@ struct NotchRootView: View {
             default: demoMonitor
             }
         } else {
-            liveMonitor
+            if phase.isAttention && contentMode != .expanded {
+                liveAttention
+            } else {
+                liveMonitor
+            }
         }
+    }
+
+    private var liveAttention: some View {
+        let interaction = appState.presentation.snapshot.pendingInteraction
+        let isPermission = phase == .waitingPermission
+        return VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 7) {
+                Image(systemName: isPermission ? "hand.raised.fill" : "questionmark.bubble.fill")
+                    .foregroundStyle(isPermission ? NotchPalette.orange : NotchPalette.cyan)
+                Text(isPermission ? "Permission needed" : "Codex has a question")
+                    .font(NotchType.readable(13, weight: .medium))
+                    .foregroundStyle(isPermission ? NotchPalette.orange : NotchPalette.cyan)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                NotchBadge(title: appState.presentation.snapshot.projectLabel)
+            }
+            if let issue = appState.navigationIssue {
+                Text(issue).font(NotchType.readable(11)).foregroundStyle(NotchPalette.orange).lineLimit(2)
+            } else if let preview = interaction?.preview {
+                Text(preview)
+                    .font(NotchType.readable(12))
+                    .foregroundStyle(.white.opacity(0.92))
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+            } else if appState.presentation.snapshot.pendingInteractionOverflowed {
+                Text("More requests need attention. Open Codex to review them.")
+                    .font(NotchType.readable(11)).foregroundStyle(NotchPalette.secondary).lineLimit(2)
+            } else if isPermission {
+                Text("Codex is waiting for approval in its native prompt.")
+                    .font(NotchType.readable(11)).foregroundStyle(NotchPalette.secondary).lineLimit(2)
+            } else {
+                Text("Open Codex to read and answer this question.")
+                    .font(NotchType.readable(11)).foregroundStyle(NotchPalette.secondary).lineLimit(2)
+            }
+            HStack(spacing: 8) {
+                Button {
+                    appState.openAttentionInCodex()
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(appState.isOpeningHost ? "Opening…" : (isPermission ? "Open Codex Desktop" : "Answer in Codex Desktop"))
+                            .lineLimit(1)
+                        Image(systemName: "arrow.up.right")
+                    }
+                    .font(NotchType.readable(11, weight: .medium))
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 30)
+                }
+                .buttonStyle(NotchButtonStyle(tone: .primary))
+                .disabled(appState.isOpeningHost)
+                .accessibilityHint("Activate Codex Desktop. This does not resolve the request.")
+                Button { appState.toggleAttentionSessionList() } label: {
+                    Image(systemName: "list.bullet")
+                        .font(NotchType.readable(12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.92))
+                        .frame(width: 34, height: 30)
+                }
+                .buttonStyle(NotchButtonStyle(tone: .neutral))
+                .accessibilityLabel("Show all active Codex sessions")
+            }
+            Text("For terminal work, return to its Codex CLI window.")
+                .font(NotchType.readable(10))
+                .foregroundStyle(NotchPalette.secondary)
+                .lineLimit(1)
+                .accessibilityHidden(false)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(isPermission ? "Permission needed" : "Question for you"), \(appState.presentation.snapshot.projectLabel)")
     }
 
     private var liveMonitor: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Codex")
+                if appState.presentation.showsSessionList && phase.isAttention {
+                    Button("Back to request") { appState.toggleAttentionSessionList() }
+                        .font(NotchType.readable(11, weight: .medium))
+                        .foregroundStyle(NotchPalette.cyan)
+                        .buttonStyle(.plain)
+                } else {
+                    Text("Codex")
                     .font(NotchType.readable(11, weight: .medium))
                     .foregroundStyle(NotchPalette.secondary)
+                }
                 Spacer()
                 Text(activeSessionsLabel)
                     .font(NotchType.readable(11))
@@ -329,7 +410,8 @@ struct NotchRootView: View {
 
     private func accent(for phase: SessionPhase) -> Color {
         switch phase {
-        case .waitingPermission, .waitingInput: NotchPalette.orange
+        case .waitingPermission: NotchPalette.orange
+        case .waitingInput: NotchPalette.cyan
         case .completed: NotchPalette.green
         case .failed: NotchPalette.red
         case .interrupted: NotchPalette.secondary

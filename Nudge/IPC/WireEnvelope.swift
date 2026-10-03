@@ -5,13 +5,15 @@ enum CodexHookEvent: String, CaseIterable, Codable, Sendable {
     case userPromptSubmit = "UserPromptSubmit"
     case preToolUse = "PreToolUse"
     case postToolUse = "PostToolUse"
+    case permissionRequest = "PermissionRequest"
     case stop = "Stop"
     case interrupt = "Interrupt"
 }
 
 struct WireEnvelope: Codable, Equatable, Sendable {
-    static let currentVersion = 2
+    static let currentVersion = 3
     static let legacyVersion = 1
+    static let previousVersion = 2
     static let maximumFrameSize = 64 * 1024
     static let maximumIdentifierBytes = 256
     static let maximumSummaryCharacters = 120
@@ -25,6 +27,8 @@ struct WireEnvelope: Codable, Equatable, Sendable {
     let projectLabel: String?
     let toolCallID: String?
     let tool: ToolActivity?
+    let toolName: String?
+    let interaction: WireInteraction?
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
@@ -34,11 +38,12 @@ struct WireEnvelope: Codable, Equatable, Sendable {
         case observedAtMilliseconds = "observed_at_ms"
         case projectLabel = "project_label"
         case toolCallID = "tool_call_id"
-        case tool
+        case tool, toolName = "tool_name", interaction
     }
 
     init(schemaVersion: Int, source: String, event: CodexHookEvent, sessionID: String, turnID: String?,
-         observedAtMilliseconds: Int64, projectLabel: String?, toolCallID: String?, tool: ToolActivity?) {
+         observedAtMilliseconds: Int64, projectLabel: String?, toolCallID: String?, tool: ToolActivity?,
+         toolName: String? = nil, interaction: WireInteraction? = nil) {
         self.schemaVersion = schemaVersion
         self.source = source
         self.event = event
@@ -48,12 +53,15 @@ struct WireEnvelope: Codable, Equatable, Sendable {
         self.projectLabel = projectLabel
         self.toolCallID = toolCallID
         self.tool = tool
+        self.toolName = toolName
+        self.interaction = interaction
     }
 
     init(from decoder: Decoder) throws {
         let dynamic = try decoder.container(keyedBy: JSONDynamicCodingKey.self)
         let allowed: Set<String> = ["schema_version", "source", "event", "session_id", "turn_id",
-                                    "observed_at_ms", "project_label", "tool_call_id", "tool"]
+                                    "observed_at_ms", "project_label", "tool_call_id", "tool",
+                                    "tool_name", "interaction"]
         guard Set(dynamic.allKeys.map(\.stringValue)).isSubset(of: allowed) else {
             throw WireError.malformedPayload
         }
@@ -67,10 +75,12 @@ struct WireEnvelope: Codable, Equatable, Sendable {
         projectLabel = try container.decodeIfPresent(String.self, forKey: .projectLabel)
         toolCallID = try container.decodeIfPresent(String.self, forKey: .toolCallID)
         tool = try container.decodeIfPresent(ToolActivity.self, forKey: .tool)
+        toolName = try container.decodeIfPresent(String.self, forKey: .toolName)
+        interaction = try container.decodeIfPresent(WireInteraction.self, forKey: .interaction)
     }
 
     func validate() throws {
-        guard schemaVersion == Self.currentVersion || schemaVersion == Self.legacyVersion else {
+        guard [Self.legacyVersion, Self.previousVersion, Self.currentVersion].contains(schemaVersion) else {
             throw WireError.unsupportedVersion
         }
         guard source == "codex" else { throw WireError.invalidSource }
@@ -78,6 +88,30 @@ struct WireEnvelope: Codable, Equatable, Sendable {
         try Self.validateIdentifier(sessionID)
         if let turnID { try Self.validateIdentifier(turnID) }
         if let toolCallID { try Self.validateIdentifier(toolCallID) }
+        if let toolName {
+            guard !toolName.isEmpty, toolName.utf8.count <= 128,
+                  !toolName.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
+                throw WireError.fieldTooLarge
+            }
+        }
+        if schemaVersion < Self.currentVersion {
+            guard toolName == nil, interaction == nil else { throw WireError.malformedPayload }
+        }
+        if let interaction {
+            guard schemaVersion == Self.currentVersion,
+                  event == .preToolUse || event == .permissionRequest,
+                  turnID != nil else { throw WireError.malformedPayload }
+            try interaction.validate()
+            switch (event, interaction.kind) {
+            case (.preToolUse, .question), (.permissionRequest, .permission): break
+            default: throw WireError.malformedPayload
+            }
+            guard interaction.toolCallID == toolCallID, interaction.toolName == toolName else {
+                throw WireError.malformedPayload
+            }
+        } else if event == .permissionRequest {
+            throw WireError.missingRequiredField
+        }
         if let projectLabel {
             guard !projectLabel.isEmpty, projectLabel.count <= Self.maximumSummaryCharacters,
                   !projectLabel.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
@@ -91,6 +125,10 @@ struct WireEnvelope: Codable, Equatable, Sendable {
         case .preToolUse, .postToolUse:
             guard turnID != nil, toolCallID != nil else { throw WireError.missingRequiredField }
             if event == .preToolUse, tool == nil { throw WireError.missingRequiredField }
+            if schemaVersion == Self.currentVersion, toolName == nil { throw WireError.missingRequiredField }
+        case .permissionRequest:
+            guard schemaVersion == Self.currentVersion, turnID != nil, toolName != nil,
+                  interaction?.kind == .permission else { throw WireError.missingRequiredField }
         case .userPromptSubmit, .stop, .interrupt:
             guard turnID != nil else { throw WireError.missingRequiredField }
         case .sessionStart:
@@ -153,6 +191,65 @@ struct WireEnvelope: Codable, Equatable, Sendable {
             true
         default:
             false
+        }
+    }
+}
+
+struct WireInteraction: Codable, Equatable, Sendable {
+    enum Kind: String, Codable, Sendable { case question, permission }
+
+    let id: String
+    let kind: Kind
+    let toolCallID: String?
+    let toolName: String
+    let preview: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, preview
+        case toolCallID = "tool_call_id"
+        case toolName = "tool_name"
+    }
+
+    init(id: String, kind: Kind, toolCallID: String?, toolName: String, preview: String?) {
+        self.id = id
+        self.kind = kind
+        self.toolCallID = toolCallID
+        self.toolName = toolName
+        self.preview = preview
+    }
+
+    init(from decoder: Decoder) throws {
+        let dynamic = try decoder.container(keyedBy: JSONDynamicCodingKey.self)
+        let allowed: Set<String> = ["id", "kind", "preview", "tool_call_id", "tool_name"]
+        guard Set(dynamic.allKeys.map(\.stringValue)).isSubset(of: allowed) else {
+            throw WireError.malformedPayload
+        }
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        kind = try container.decode(Kind.self, forKey: .kind)
+        toolCallID = try container.decodeIfPresent(String.self, forKey: .toolCallID)
+        toolName = try container.decode(String.self, forKey: .toolName)
+        preview = try container.decodeIfPresent(String.self, forKey: .preview)
+    }
+
+    func validate() throws {
+        guard !id.isEmpty, id.utf8.count <= WireEnvelope.maximumIdentifierBytes,
+              !id.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
+              !toolName.isEmpty, toolName.utf8.count <= 128,
+              !toolName.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
+            throw WireError.fieldTooLarge
+        }
+        if let toolCallID {
+            guard !toolCallID.isEmpty, toolCallID.utf8.count <= WireEnvelope.maximumIdentifierBytes,
+                  !toolCallID.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
+                throw WireError.fieldTooLarge
+            }
+        }
+        if let preview {
+            guard !preview.isEmpty, preview.count <= 240,
+                  !preview.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
+                throw WireError.fieldTooLarge
+            }
         }
     }
 }

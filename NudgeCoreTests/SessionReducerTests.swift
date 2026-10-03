@@ -111,10 +111,10 @@ final class SessionReducerTests: XCTestCase {
 
         state = reducer.reduce(state, event: event("PostToolUse", session: "s", turn: "q", at: 1_004,
             kind: .toolFinished(id: "unrelated"))).session!
-        XCTAssertEqual(state.pendingInteraction, pending)
+        XCTAssertEqual(state.pendingInteraction?.id, pending.id)
         state = reducer.reduce(state, event: event("Resolved", session: "s", turn: "q", at: 1_005,
             kind: .interactionResolved(id: "other-request"))).session!
-        XCTAssertEqual(state.pendingInteraction, pending)
+        XCTAssertEqual(state.pendingInteraction?.id, pending.id)
 
         state = reducer.reduce(state, event: event("PostToolUse", session: "s", turn: "q", at: 1_006,
             kind: .toolFinished(id: "request"))).session!

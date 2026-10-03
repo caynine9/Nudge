@@ -68,8 +68,9 @@ struct PresentationReducer {
             if snapshot.phase.isAttention {
                 next.collapseGeneration += 1
                 effects.append(.cancel(.collapse))
-            } else if state.snapshot.phase.isAttention && next.pointerInside {
-                next.peekVisible = true
+            } else {
+                next.showsSessionList = false
+                if state.snapshot.phase.isAttention && next.pointerInside { next.peekVisible = true }
             }
 
         case let .previewInteractionResolved(snapshot, feedback):
@@ -121,8 +122,15 @@ struct PresentationReducer {
                 next.peekVisible = true
             }
 
+        case .toggleSessionList:
+            guard !next.isSleeping, next.snapshot.phase.isAttention else { return PresentationTransition(state: state) }
+            next.showsSessionList.toggle()
+            next.pinnedOpen = false
+            next.peekVisible = false
+
         case .collapse:
             next.pinnedOpen = false
+            next.showsSessionList = false
             next.peekGeneration += 1
             next.peekVisible = false
             next.collapseGeneration += 1

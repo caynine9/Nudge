@@ -8,6 +8,7 @@ final class AppState: ObservableObject {
 
     @Published private(set) var presentation = PresentationState()
     @Published private(set) var celebrationPulse = 0
+    @Published private(set) var attentionPulse = 0
     @Published private(set) var reduceMotion = false
     @Published private(set) var isDemoMode = false
     @Published var wantsPanelVisible = true
@@ -25,6 +26,7 @@ final class AppState: ObservableObject {
     private let reducer = PresentationReducer()
     private var scheduled: [PresentationTimer: Task<Void, Never>] = [:]
     private var turnNumber = 1
+    private var lastAttentionIdentity: String?
     private var latestLiveSnapshot = ActivityMonitorSnapshot.empty
     private var selectedCodexHomes: [String: String] =
         UserDefaults.standard.dictionary(forKey: "selectedCodexHomes") as? [String: String] ?? [:]
@@ -102,6 +104,26 @@ final class AppState: ObservableObject {
         if !isDemoMode { dispatch(.snapshotChanged(presentationSnapshot(from: latestLiveSnapshot))) }
     }
 
+    func toggleAttentionSessionList() {
+        guard !isDemoMode, presentation.snapshot.phase.isAttention else { return }
+        dispatch(.toggleSessionList)
+    }
+
+    func openAttentionInCodex() {
+        guard !isDemoMode, !isOpeningHost, presentation.snapshot.phase.isAttention else { return }
+        isOpeningHost = true
+        navigationIssue = nil
+        Task { @MainActor in
+            defer { isOpeningHost = false }
+            do {
+                try await CodexNavigator().open(.desktop)
+            } catch {
+                navigationIssue = (error as? CodexNavigator.NavigationError)?.localizedDescription
+                    ?? "Could not open Codex Desktop. Open it, then try again."
+            }
+        }
+    }
+
     func openLiveSession(_ sessionID: String) {
         guard !isDemoMode, !isOpeningHost,
               activeSessions.contains(where: { $0.sessionID == sessionID }) else { return }
@@ -126,6 +148,9 @@ final class AppState: ObservableObject {
     }
 
     private func presentationSnapshot(from monitor: ActivityMonitorSnapshot) -> ActivitySnapshot {
+        if let selectedLiveSessionID,
+           let selected = monitor.activeSessions.first(where: { $0.sessionID == selectedLiveSessionID }),
+           selected.phase.isAttention { return selected }
         if let waiting = monitor.activeSessions.first(where: { $0.phase.isAttention }) { return waiting }
         if let selectedLiveSessionID,
            let selected = monitor.activeSessions.first(where: { $0.sessionID == selectedLiveSessionID }) {
@@ -187,7 +212,7 @@ final class AppState: ObservableObject {
         }
         guard confirmHookChange(
             title: "Install or refresh Codex hooks?",
-            message: "Nudge will refresh its local bridge helper, then ensure six lifecycle hooks are registered in:\n\(target.hooksFile.path)\n\nExisting handlers will be preserved. An existing file is backed up before it changes. Review and trust Nudge's hooks in Codex, especially PreToolUse and PostToolUse, so tool activity can appear. In Codex CLI, inspect them with /hooks."
+            message: "Nudge will refresh its local bridge helper, then ensure seven lifecycle hooks are registered in:\n\(target.hooksFile.path)\n\nExisting handlers will be preserved. An existing file is backed up before it changes. Review and trust Nudge's hooks in Codex, including PermissionRequest, PreToolUse, and PostToolUse, so activity and attention can appear. In Codex CLI, inspect them with /hooks."
         ) else { return }
         Task.detached(priority: .userInitiated) { [weak self] in
             let result: HookInstallResult
@@ -232,7 +257,7 @@ final class AppState: ObservableObject {
     private static func message(for result: HookInstallResult, host: CodexHost) -> String {
         switch result {
         case let .installed(backup):
-            "Six hooks registered for \(host.title). Review and trust Nudge's hooks in Codex, especially PreToolUse and PostToolUse; host coverage remains unverified. Backup: \(backup.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "new file")."
+            "Seven hooks registered for \(host.title). Review and trust Nudge's hooks in Codex, including PermissionRequest, PreToolUse, and PostToolUse; host coverage remains unverified. Backup: \(backup.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "new file")."
         case .removed: "Nudge hooks removed from the selected config."
         case .alreadyInstalled: "The Nudge bridge helper was refreshed. Hooks were already registered, so no config rewrite was needed. Review trust and host coverage in Codex."
         case .notInstalled: "No Nudge-owned hooks were found in the selected config."
@@ -264,6 +289,15 @@ final class AppState: ObservableObject {
     func dispatch(_ input: PresentationInput) {
         let transition = reducer.reduce(presentation, input)
         presentation = transition.state
+        let snapshot = transition.state.snapshot
+        let interaction = snapshot.pendingInteraction
+        let identity = snapshot.phase.isAttention
+            ? "\(snapshot.sessionID):\(snapshot.turnID):\(interaction?.id ?? "overflow"):\(snapshot.phase.rawValue)"
+            : nil
+        if identity != lastAttentionIdentity {
+            lastAttentionIdentity = identity
+            if identity != nil, !transition.state.isSleeping { attentionPulse &+= 1 }
+        }
         for effect in transition.effects {
             run(effect)
         }

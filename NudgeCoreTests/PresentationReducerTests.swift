@@ -62,6 +62,28 @@ final class PresentationReducerTests: XCTestCase {
         XCTAssertEqual(newCompletion.effects.filter { if case .celebrate = $0 { return true }; return false }.count, 1)
     }
 
+    func testLiveAttentionCanShowSessionListWithoutClearingPendingState() {
+        let reducer = PresentationReducer()
+        var attention = snapshot(session: "s", turn: "t", phase: .waitingInput)
+        attention = ActivitySnapshot(sessionID: attention.sessionID, turnID: attention.turnID,
+            projectLabel: attention.projectLabel, phase: attention.phase, currentTool: nil,
+            activityLabel: attention.activityLabel, detail: attention.detail,
+            pendingInteractions: [PendingInteraction(id: "question-1", kind: .question,
+                                                      toolCallID: "tool-1", preview: "Question?")])
+        let waiting = reducer.reduce(PresentationState(), .snapshotChanged(attention)).state
+        XCTAssertEqual(waiting.mode, .attention)
+
+        let expanded = reducer.reduce(waiting, .toggleSessionList).state
+        XCTAssertEqual(expanded.mode, .expanded)
+        XCTAssertTrue(expanded.showsSessionList)
+        XCTAssertEqual(expanded.snapshot.pendingInteraction?.id, "question-1")
+
+        let returned = reducer.reduce(expanded, .collapse).state
+        XCTAssertEqual(returned.mode, .attention)
+        XCTAssertFalse(returned.showsSessionList)
+        XCTAssertEqual(returned.snapshot.pendingInteraction?.id, "question-1")
+    }
+
     private func snapshot(session: String, turn: String, phase: SessionPhase, observedAt: Date = Date()) -> ActivitySnapshot {
         ActivitySnapshot(sessionID: session, turnID: turn, projectLabel: "Test", phase: phase,
                          currentTool: nil, activityLabel: phase.title, detail: phase.detail, observedAt: observedAt)

@@ -85,6 +85,10 @@ actor CodexEventMonitor {
 
     private static func event(from envelope: WireEnvelope) -> NudgeEvent {
         let date = Date(timeIntervalSince1970: Double(envelope.observedAtMilliseconds) / 1_000)
+        let interaction = envelope.interaction.map {
+            PendingInteraction(id: $0.id, kind: $0.kind == .permission ? .permission : .question,
+                               toolCallID: $0.toolCallID, toolName: $0.toolName, preview: $0.preview)
+        }
         let kind: NudgeEvent.Kind
         switch envelope.event {
         case .sessionStart:
@@ -96,12 +100,15 @@ actor CodexEventMonitor {
                 ToolActivity(category: .other, summary: "Using Codex tool", symbol: "sparkles"))
         case .postToolUse:
             kind = .toolFinished(id: envelope.toolCallID ?? "")
+        case .permissionRequest:
+            kind = .pendingInteraction(interaction!)
         case .stop:
             kind = .turnFinished
         case .interrupt:
             kind = .interrupted
         }
         return NudgeEvent(sessionID: envelope.sessionID, turnID: envelope.turnID, observedAt: date,
-                          kind: kind, projectLabel: envelope.projectLabel)
+                          kind: kind, projectLabel: envelope.projectLabel, toolName: envelope.toolName,
+                          interaction: envelope.event == .preToolUse ? interaction : nil)
     }
 }

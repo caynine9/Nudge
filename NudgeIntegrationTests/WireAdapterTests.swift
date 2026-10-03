@@ -92,6 +92,118 @@ final class WireAdapterTests: XCTestCase {
         XCTAssertEqual(fallback.tool?.summary, "Running command")
     }
 
+    func testCandidateQuestionPayloadForwardsOnlyTheBoundedQuestionPreview() throws {
+        let input = try attentionFixture("request-user-input.json")
+        let envelope = try CodexHookAdapter().envelope(from: input, expectedEvent: .preToolUse)
+
+        XCTAssertEqual(envelope.interaction?.kind, .question)
+        XCTAssertEqual(envelope.interaction?.toolCallID, "synthetic-question-call")
+        XCTAssertEqual(envelope.interaction?.preview, "Which migration strategy should be used?")
+        let frame = try WireCodec.encode(envelope)
+        let wire = String(decoding: frame.dropFirst(4), as: UTF8.self)
+        XCTAssertTrue(wire.contains("Which migration strategy should be used?"))
+        XCTAssertFalse(wire.contains("Keep compatibility"))
+        XCTAssertFalse(wire.contains("SYNTHETIC_SECRET"))
+        XCTAssertFalse(wire.contains("tool_input"))
+    }
+
+    func testPermissionRequestWithoutPublishedToolIDStaysDecisionFreeAndSanitized() throws {
+        let input = try attentionFixture("permission-request.json")
+        let envelope = try CodexHookAdapter().envelope(from: input, expectedEvent: .permissionRequest)
+
+        XCTAssertEqual(envelope.interaction?.kind, .permission)
+        XCTAssertNil(envelope.interaction?.toolCallID)
+        XCTAssertNil(envelope.interaction?.preview)
+        let frame = try WireCodec.encode(envelope)
+        let wire = String(decoding: frame.dropFirst(4), as: UTF8.self)
+        XCTAssertFalse(wire.contains("rm -rf"))
+        XCTAssertFalse(wire.contains("SYNTHETIC_SECRET"))
+        XCTAssertFalse(wire.contains("description"))
+    }
+
+    func testQuestionRemainsPendingUntilItsOwnToolCallFinishes() async throws {
+        let monitor = CodexEventMonitor()
+        let adapter = CodexHookAdapter()
+        let origin = Date(timeIntervalSince1970: 1_700_000_100)
+        let question = try adapter.envelope(from: attentionFixture("request-user-input.json"),
+                                            expectedEvent: .preToolUse, now: origin)
+        let waiting = await monitor.consume(question, now: origin, monotonicNow: 1)
+        XCTAssertEqual(waiting.focused.phase, .waitingInput)
+        XCTAssertEqual(waiting.focused.pendingInteraction?.preview, "Which migration strategy should be used?")
+
+        let unrelated = makeEnvelope(.postToolUse, session: question.sessionID, turn: question.turnID,
+                                     at: origin.addingTimeInterval(1), toolID: "other-tool")
+        let afterUnrelated = await monitor.consume(unrelated, now: origin.addingTimeInterval(1), monotonicNow: 2)
+        XCTAssertEqual(afterUnrelated.focused.phase, .waitingInput)
+
+        let matching = makeEnvelope(.postToolUse, session: question.sessionID, turn: question.turnID,
+                                    at: origin.addingTimeInterval(2), toolID: question.toolCallID)
+        let resolved = await monitor.consume(matching, now: origin.addingTimeInterval(2), monotonicNow: 3)
+        XCTAssertFalse(resolved.focused.phase.isAttention)
+        XCTAssertTrue(resolved.focused.pendingInteractions.isEmpty)
+    }
+
+    func testPermissionWithoutRequestIDBindsToTheOnlyActiveMatchingTool() async throws {
+        let monitor = CodexEventMonitor()
+        let adapter = CodexHookAdapter()
+        let origin = Date(timeIntervalSince1970: 1_700_000_200)
+        let permission = try adapter.envelope(from: attentionFixture("permission-request.json"),
+                                              expectedEvent: .permissionRequest, now: origin)
+        let waiting = await monitor.consume(permission, now: origin, monotonicNow: 1)
+        XCTAssertEqual(waiting.focused.phase, .waitingPermission)
+
+        let activity = ToolActivity(category: .shell, summary: "Running command", symbol: "terminal")
+        let toolStarted = makeEnvelope(.preToolUse, session: permission.sessionID, turn: permission.turnID,
+                                       at: origin.addingTimeInterval(1), toolID: "permission-tool", tool: activity)
+        let afterStart = await monitor.consume(toolStarted, now: origin.addingTimeInterval(1), monotonicNow: 2)
+        XCTAssertEqual(afterStart.focused.pendingInteraction?.toolCallID, "permission-tool")
+
+        let unrelated = makeEnvelope(.postToolUse, session: permission.sessionID, turn: permission.turnID,
+                                     at: origin.addingTimeInterval(2), toolID: "other-tool")
+        let afterUnrelated = await monitor.consume(unrelated, now: origin.addingTimeInterval(2), monotonicNow: 3)
+        XCTAssertEqual(afterUnrelated.focused.phase, .waitingPermission)
+
+        let matching = makeEnvelope(.postToolUse, session: permission.sessionID, turn: permission.turnID,
+                                    at: origin.addingTimeInterval(3), toolID: "permission-tool")
+        let resolved = await monitor.consume(matching, now: origin.addingTimeInterval(3), monotonicNow: 4)
+        XCTAssertFalse(resolved.focused.phase.isAttention)
+        XCTAssertTrue(resolved.focused.pendingInteractions.isEmpty)
+    }
+
+    func testAmbiguousPermissionWithoutRequestIDStaysPendingThroughSameNameToolFinishes() async throws {
+        let monitor = CodexEventMonitor()
+        let adapter = CodexHookAdapter()
+        let origin = Date(timeIntervalSince1970: 1_700_000_300)
+        let activity = ToolActivity(category: .shell, summary: "Running command", symbol: "terminal")
+        let permission = try adapter.envelope(from: attentionFixture("permission-request.json"),
+            expectedEvent: .permissionRequest, now: origin.addingTimeInterval(2))
+        let firstStart = makeEnvelope(.preToolUse, session: permission.sessionID, turn: permission.turnID,
+                                      at: origin, toolID: "first-tool", tool: activity)
+        _ = await monitor.consume(firstStart, now: origin, monotonicNow: 1)
+        let secondStart = makeEnvelope(.preToolUse, session: permission.sessionID, turn: permission.turnID,
+                                       at: origin.addingTimeInterval(1), toolID: "second-tool", tool: activity)
+        _ = await monitor.consume(secondStart, now: origin.addingTimeInterval(1), monotonicNow: 2)
+
+        let waiting = await monitor.consume(permission, now: origin.addingTimeInterval(2), monotonicNow: 3)
+        XCTAssertEqual(waiting.focused.phase, .waitingPermission)
+        XCTAssertNil(waiting.focused.pendingInteraction?.toolCallID)
+
+        let firstFinish = makeEnvelope(.postToolUse, session: permission.sessionID, turn: permission.turnID,
+                                       at: origin.addingTimeInterval(3), toolID: "first-tool")
+        let afterFirst = await monitor.consume(firstFinish, now: origin.addingTimeInterval(3), monotonicNow: 4)
+        XCTAssertEqual(afterFirst.focused.phase, .waitingPermission)
+
+        let secondFinish = makeEnvelope(.postToolUse, session: permission.sessionID, turn: permission.turnID,
+                                        at: origin.addingTimeInterval(4), toolID: "second-tool")
+        let afterSecond = await monitor.consume(secondFinish, now: origin.addingTimeInterval(4), monotonicNow: 5)
+        XCTAssertEqual(afterSecond.focused.phase, .waitingPermission)
+
+        let stopped = makeEnvelope(.stop, session: permission.sessionID, turn: permission.turnID,
+                                   at: origin.addingTimeInterval(5))
+        let afterStop = await monitor.consume(stopped, now: origin.addingTimeInterval(5), monotonicNow: 6)
+        XCTAssertFalse(afterStop.focused.phase.isAttention)
+    }
+
     func testDuplicateStopAfterShortTTLDoesNotCreateSecondCompletion() async {
         let monitor = CodexEventMonitor()
         let origin = Date(timeIntervalSince1970: 1_700_000_000)
@@ -146,13 +258,20 @@ final class WireAdapterTests: XCTestCase {
         WireEnvelope(schemaVersion: WireEnvelope.currentVersion, source: "codex", event: event,
                      sessionID: session, turnID: turn,
                      observedAtMilliseconds: Int64(date.timeIntervalSince1970 * 1_000),
-                     projectLabel: project, toolCallID: toolID, tool: tool)
+                     projectLabel: project, toolCallID: toolID, tool: tool,
+                     toolName: event == .preToolUse || event == .postToolUse ? "Bash" : nil)
     }
 
     private func edgeCaseLines(_ name: String) throws -> [Data] {
         let url = Bundle(for: Self.self).resourceURL!
             .appendingPathComponent("Codex/edge-cases/\(name)")
         return try Data(contentsOf: url).split(separator: 0x0A).map(Data.init)
+    }
+
+    private func attentionFixture(_ name: String) throws -> Data {
+        let url = Bundle(for: Self.self).resourceURL!
+            .appendingPathComponent("Codex/attention/\(name)")
+        return try Data(contentsOf: url)
     }
 
     private func adapt(_ data: Data, adapter: CodexHookAdapter, at date: Date) throws -> WireEnvelope {
@@ -171,10 +290,20 @@ final class WireAdapterTests: XCTestCase {
         case .preToolUse:
             kind = .toolStarted(id: envelope.toolCallID!, activity: envelope.tool!)
         case .postToolUse: kind = .toolFinished(id: envelope.toolCallID!)
+        case .permissionRequest:
+            kind = .pendingInteraction(PendingInteraction(id: envelope.interaction!.id, kind: .permission,
+                toolCallID: envelope.interaction!.toolCallID, toolName: envelope.interaction!.toolName,
+                preview: envelope.interaction!.preview))
         case .stop: kind = .turnFinished
         case .interrupt: kind = .interrupted
         }
         return NudgeEvent(sessionID: envelope.sessionID, turnID: envelope.turnID, observedAt: observedAt,
-                          kind: kind, projectLabel: envelope.projectLabel)
+                          kind: kind, projectLabel: envelope.projectLabel, toolName: envelope.toolName,
+                          interaction: envelope.event == .preToolUse
+                            ? envelope.interaction.map {
+                                PendingInteraction(id: $0.id, kind: .question, toolCallID: $0.toolCallID,
+                                                   toolName: $0.toolName, preview: $0.preview)
+                            }
+                            : nil)
     }
 }

@@ -7,17 +7,42 @@ struct CodexSessionState: Equatable, Sendable {
     var metadataUpdatedAt: Date? = nil
     var phase: SessionPhase
     var activeTools: [String: ToolActivity]
+    var activeToolNames: [String: String] = [:]
     var activeToolOrder: [String] = []
     var finishedToolIDs: [String] = []
-    var pendingInteraction: PendingInteraction? = nil
+    var pendingInteractions: [PendingInteraction] = []
+    var pendingInteractionOverflowed = false
+    var resolvedInteractionIDs: [String] = []
     var pendingInteractionStartedAt: Date? = nil
     var lastActivityAt: Date
     var turnStartedAt: Date? = nil
     var completedTurnIDs: [String]
     var retiredTurnIDs: [String] = []
 
+    static let retainedInteractionLimit = 16
+
+    var pendingInteraction: PendingInteraction? {
+        get { pendingInteractions.first }
+        set {
+            if let newValue {
+                if let index = pendingInteractions.firstIndex(where: { $0.id == newValue.id }) {
+                    pendingInteractions[index] = newValue
+                } else if pendingInteractions.count < Self.retainedInteractionLimit {
+                    pendingInteractions.append(newValue)
+                } else {
+                    pendingInteractionOverflowed = true
+                }
+            } else {
+                pendingInteractions.removeAll()
+                pendingInteractionOverflowed = false
+            }
+        }
+    }
+
     var presentationPhase: SessionPhase {
-        pendingInteraction.map { $0.kind == .permission ? .waitingPermission : .waitingInput } ?? phase
+        if let pendingInteraction { return pendingInteraction.kind == .permission ? .waitingPermission : .waitingInput }
+        if pendingInteractionOverflowed { return .waitingInput }
+        return phase
     }
 
     var snapshot: ActivitySnapshot {
@@ -28,7 +53,8 @@ struct CodexSessionState: Equatable, Sendable {
         case .toolUse: detail = currentTool?.summary ?? "Working"
         case .completed: detail = "Turn finished."
         case .waitingPermission: detail = "Codex needs permission."
-        case .waitingInput: detail = "Codex has a question."
+        case .waitingInput: detail = pendingInteractionOverflowed && pendingInteractions.isEmpty
+            ? "More Codex requests need attention." : "Codex has a question."
         default: detail = displayPhase.detail
         }
         return ActivitySnapshot(
@@ -40,7 +66,9 @@ struct CodexSessionState: Equatable, Sendable {
             activityLabel: displayPhase.isAttention ? displayPhase.title : (currentTool?.summary ?? displayPhase.title),
             detail: detail,
             observedAt: lastActivityAt,
-            turnStartedAt: turnStartedAt
+            turnStartedAt: turnStartedAt,
+            pendingInteractions: pendingInteractions,
+            pendingInteractionOverflowed: pendingInteractionOverflowed
         )
     }
 
@@ -77,6 +105,7 @@ struct SessionReducer {
             metadataUpdatedAt: nil,
             phase: .discovered,
             activeTools: [:],
+            activeToolNames: [:],
             lastActivityAt: event.observedAt,
             completedTurnIDs: []
         )
@@ -126,23 +155,36 @@ struct SessionReducer {
                 return result
             }
             session.activeTools[id] = activity
+            if let toolName = event.toolName { session.activeToolNames[id] = toolName }
             session.activeToolOrder.append(id)
             session.phase = .toolUse
+            bindPendingPermissionToUniqueTool(in: &session, at: event.observedAt)
+            if let interaction = event.interaction {
+                register(interaction, at: event.observedAt, in: &session)
+            }
             result.didMakeProgress = true
 
         case let .toolFinished(id):
             guard !id.isEmpty, let incoming = validTurnID(event.turnID),
                   prepareProgressTurn(incoming, at: event.observedAt, session: &session) else { return Result(session: previous) }
             guard !session.finishedToolIDs.contains(id) else { return Result(session: previous) }
+            let toolName = event.toolName ?? session.activeToolNames[id]
+            let resolvable = session.pendingInteractions.filter { pending in
+                if pending.toolCallID == id { return true }
+                return pending.kind == .permission && pending.toolCallID == nil
+                    && !pending.permissionCorrelationWasAmbiguous
+                    && pending.toolName == toolName
+                    && session.activeTools.filter { session.activeToolNames[$0.key] == toolName }.count == 1
+            }
+            for pending in resolvable { appendResolved(pending.id, in: &session) }
+            session.pendingInteractions.removeAll { resolved in resolvable.contains { $0.id == resolved.id } }
+            session.pendingInteractionStartedAt = session.pendingInteractions.first?.createdAt
             session.activeTools.removeValue(forKey: id)
+            session.activeToolNames.removeValue(forKey: id)
             session.activeToolOrder.removeAll { $0 == id }
             appendUnique(id, to: &session.finishedToolIDs)
             if session.finishedToolIDs.count > Self.retainedToolLimit {
                 session.finishedToolIDs.removeFirst(session.finishedToolIDs.count - Self.retainedToolLimit)
-            }
-            if session.pendingInteraction?.toolCallID == id {
-                session.pendingInteraction = nil
-                session.pendingInteractionStartedAt = nil
             }
             updateWorkingPhase(&session)
             result.didMakeProgress = true
@@ -150,17 +192,18 @@ struct SessionReducer {
         case let .pendingInteraction(interaction):
             guard let incoming = validTurnID(event.turnID),
                   prepareProgressTurn(incoming, at: event.observedAt, session: &session) else { return Result(session: previous) }
-            if session.pendingInteraction == interaction { return result }
-            session.pendingInteraction = interaction
-            session.pendingInteractionStartedAt = event.observedAt
+            guard !session.resolvedInteractionIDs.contains(interaction.id),
+                  interaction.toolCallID.map({ !session.finishedToolIDs.contains($0) }) ?? true else { return result }
+            register(interaction, at: event.observedAt, in: &session)
             session.phase = .thinking
             result.didMakeProgress = true
 
         case let .interactionResolved(id):
-            guard let pending = session.pendingInteraction, pending.id == id,
+            guard session.pendingInteractions.contains(where: { $0.id == id }),
                   event.turnID == nil || event.turnID == session.turnID else { return Result(session: previous) }
-            session.pendingInteraction = nil
-            session.pendingInteractionStartedAt = nil
+            session.pendingInteractions.removeAll { $0.id == id }
+            appendResolved(id, in: &session)
+            session.pendingInteractionStartedAt = session.pendingInteractions.first?.createdAt
             updateWorkingPhase(&session)
             result.didMakeProgress = true
 
@@ -173,6 +216,7 @@ struct SessionReducer {
             session.pendingInteraction = nil
             session.pendingInteractionStartedAt = nil
             session.activeTools.removeAll()
+            session.activeToolNames.removeAll()
             session.activeToolOrder.removeAll()
             session.phase = .ended
             result.didMakeProgress = true
@@ -182,10 +226,12 @@ struct SessionReducer {
                   prepareTerminalTurn(incoming, at: event.observedAt, session: &session),
                   session.phase != .completed else { return Result(session: previous) }
             session.activeTools.removeAll()
+            session.activeToolNames.removeAll()
             session.activeToolOrder.removeAll()
             session.finishedToolIDs.removeAll()
             session.pendingInteraction = nil
             session.pendingInteractionStartedAt = nil
+            session.resolvedInteractionIDs.removeAll()
             session.phase = .completed
             appendUnique(incoming, to: &session.completedTurnIDs)
             retireTurn(incoming, in: &session)
@@ -199,10 +245,12 @@ struct SessionReducer {
                 return Result(session: previous)
             }
             session.activeTools.removeAll()
+            session.activeToolNames.removeAll()
             session.activeToolOrder.removeAll()
             session.finishedToolIDs.removeAll()
             session.pendingInteraction = nil
             session.pendingInteractionStartedAt = nil
+            session.resolvedInteractionIDs.removeAll()
             session.phase = .interrupted
             retireTurn(incoming, in: &session)
             result.didInterruptTurn = true
@@ -259,16 +307,58 @@ struct SessionReducer {
         session.turnID = id
         session.turnStartedAt = date
         session.activeTools.removeAll()
+        session.activeToolNames.removeAll()
         session.activeToolOrder.removeAll()
         session.finishedToolIDs.removeAll()
         session.pendingInteraction = nil
         session.pendingInteractionStartedAt = nil
+        session.resolvedInteractionIDs.removeAll()
         session.phase = .thinking
     }
 
     private func updateWorkingPhase(_ session: inout CodexSessionState) {
-        if session.pendingInteraction != nil { session.phase = .thinking }
+        if !session.pendingInteractions.isEmpty || session.pendingInteractionOverflowed { session.phase = .thinking }
         else { session.phase = session.activeTools.isEmpty ? .thinking : .toolUse }
+    }
+
+    private func register(_ interaction: PendingInteraction, at date: Date, in session: inout CodexSessionState) {
+        var value = interaction
+        if value.kind == .permission, value.toolCallID == nil, !value.permissionCorrelationWasAmbiguous {
+            let matching = session.activeTools.keys.filter { session.activeToolNames[$0] == value.toolName }
+            if matching.count == 1 { value.toolCallID = matching[0] }
+            else if matching.count > 1 { value.permissionCorrelationWasAmbiguous = true }
+        }
+        if let index = session.pendingInteractions.firstIndex(where: { $0.id == value.id }) {
+            value.createdAt = session.pendingInteractions[index].createdAt ?? date
+            session.pendingInteractions[index] = value
+        } else {
+            value.createdAt = date
+            session.pendingInteraction = value
+        }
+        session.pendingInteractionStartedAt = session.pendingInteractions.first?.createdAt ?? date
+    }
+
+    private func bindPendingPermissionToUniqueTool(in session: inout CodexSessionState, at date: Date) {
+        for index in session.pendingInteractions.indices where session.pendingInteractions[index].kind == .permission
+            && session.pendingInteractions[index].toolCallID == nil
+            && !session.pendingInteractions[index].permissionCorrelationWasAmbiguous {
+            let pending = session.pendingInteractions[index]
+            let matching = session.activeTools.keys.filter { session.activeToolNames[$0] == pending.toolName }
+            if matching.count == 1 {
+                session.pendingInteractions[index].toolCallID = matching[0]
+                session.pendingInteractions[index].createdAt = pending.createdAt ?? date
+            } else if matching.count > 1 {
+                session.pendingInteractions[index].permissionCorrelationWasAmbiguous = true
+            }
+        }
+    }
+
+    private func appendResolved(_ id: String, in session: inout CodexSessionState) {
+        guard !id.isEmpty, !session.resolvedInteractionIDs.contains(id) else { return }
+        session.resolvedInteractionIDs.append(id)
+        if session.resolvedInteractionIDs.count > Self.retainedTurnLimit {
+            session.resolvedInteractionIDs.removeFirst(session.resolvedInteractionIDs.count - Self.retainedTurnLimit)
+        }
     }
 
     private func retireCurrentTurn(_ session: inout CodexSessionState) {

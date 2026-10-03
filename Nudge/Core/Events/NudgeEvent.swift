@@ -9,6 +9,10 @@ struct PendingInteraction: Equatable, Sendable {
     let id: String
     let kind: PendingInteractionKind
     var toolCallID: String?
+    var toolName: String? = nil
+    var preview: String? = nil
+    var createdAt: Date? = nil
+    var permissionCorrelationWasAmbiguous = false
 }
 
 struct NudgeEvent: Equatable, Sendable {
@@ -29,6 +33,8 @@ struct NudgeEvent: Equatable, Sendable {
     let observedAt: Date
     let kind: Kind
     var projectLabel: String? = nil
+    var toolName: String? = nil
+    var interaction: PendingInteraction? = nil
 
     var semanticKey: String {
         let identity: [String]
@@ -36,7 +42,7 @@ struct NudgeEvent: Equatable, Sendable {
         case .sessionStarted: identity = ["session"]
         case .promptSubmitted: identity = ["prompt"]
         case let .toolStarted(id, activity): identity = ["tool-start", id, activity.category.rawValue, activity.summary, activity.symbol]
-        case let .toolFinished(id): identity = ["tool-finish", id]
+        case let .toolFinished(id): identity = ["tool-finish", id, toolName ?? ""]
         case let .pendingInteraction(interaction):
             identity = ["pending", interaction.id, interaction.kind.rawValue, interaction.toolCallID ?? ""]
         case let .interactionResolved(id): identity = ["resolved", id]
@@ -45,6 +51,7 @@ struct NudgeEvent: Equatable, Sendable {
         case .interrupted: identity = ["interrupt"]
         }
         // Length prefixing makes arbitrary host identifiers safe as a composite key.
-        return ([sessionID, turnID ?? ""] + identity).map { "\($0.utf8.count):\($0)" }.joined()
+        let interactionKey = interaction.map { ["attached", $0.id, $0.kind.rawValue, $0.toolCallID ?? ""] } ?? []
+        return ([sessionID, turnID ?? ""] + identity + interactionKey).map { "\($0.utf8.count):\($0)" }.joined()
     }
 }

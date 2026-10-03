@@ -43,13 +43,15 @@ final class WireValidationTests: XCTestCase {
 
         let current = WireEnvelope(schemaVersion: WireEnvelope.currentVersion, source: "codex", event: .preToolUse,
             sessionID: "session", turnID: "turn", observedAtMilliseconds: 1, projectLabel: nil,
-            toolCallID: "tool", tool: ToolActivity(category: .test, summary: "Running Xcode tests", symbol: "checkmark.circle"))
+            toolCallID: "tool", tool: ToolActivity(category: .test, summary: "Running Xcode tests", symbol: "checkmark.circle"),
+            toolName: "Bash")
         let currentFrame = try WireCodec.encode(current)
         XCTAssertEqual(try WireCodec.decode(Data(currentFrame.dropFirst(4))), current)
 
         let unapproved = WireEnvelope(schemaVersion: WireEnvelope.currentVersion, source: "codex", event: .preToolUse,
             sessionID: "session", turnID: "turn", observedAtMilliseconds: 1, projectLabel: nil,
-            toolCallID: "tool", tool: ToolActivity(category: .shell, summary: "swift test --secret token", symbol: "terminal"))
+            toolCallID: "tool", tool: ToolActivity(category: .shell, summary: "swift test --secret token", symbol: "terminal"),
+            toolName: "Bash")
         XCTAssertThrowsError(try WireCodec.encode(unapproved))
     }
 

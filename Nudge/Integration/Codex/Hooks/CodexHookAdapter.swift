@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 struct CodexHookAdapter {
     func envelope(from data: Data, expectedEvent: CodexHookEvent, now: Date = Date()) throws -> WireEnvelope {
@@ -17,6 +18,8 @@ struct CodexHookAdapter {
         let projectLabel = cwd.flatMap(Self.safeProjectLabel)
         var toolCallID: String?
         var tool: ToolActivity?
+        var toolName: String?
+        var interaction: WireInteraction?
 
         switch expectedEvent {
         case .sessionStart:
@@ -29,9 +32,35 @@ struct CodexHookAdapter {
                   let rawToolName = object["tool_name"] as? String,
                   rawToolName.utf8.count <= 128 else { throw HookPayloadError.missingIdentity }
             toolCallID = identifier
+            toolName = rawToolName
             if expectedEvent == .preToolUse {
                 tool = Self.activity(for: rawToolName, input: object["tool_input"])
+                if rawToolName == "request_user_input" {
+                    interaction = WireInteraction(
+                        id: Self.interactionID(kind: .question, sessionID: sessionID, turnID: turnID!,
+                                               toolCallID: identifier, toolName: rawToolName),
+                        kind: .question,
+                        toolCallID: identifier,
+                        toolName: rawToolName,
+                        preview: Self.questionPreview(from: object["tool_input"])
+                    )
+                }
             }
+        case .permissionRequest:
+            guard let activeTurnID = turnID,
+                  let rawToolName = boundedString(object["tool_name"], maximumBytes: 128) else {
+                throw HookPayloadError.missingIdentity
+            }
+            toolName = rawToolName
+            toolCallID = boundedString(object["tool_use_id"], maximumBytes: WireEnvelope.maximumIdentifierBytes)
+            interaction = WireInteraction(
+                id: Self.interactionID(kind: .permission, sessionID: sessionID, turnID: activeTurnID,
+                                       toolCallID: toolCallID, toolName: rawToolName),
+                kind: .permission,
+                toolCallID: toolCallID,
+                toolName: rawToolName,
+                preview: nil
+            )
         }
 
         let envelope = WireEnvelope(
@@ -43,7 +72,9 @@ struct CodexHookAdapter {
             observedAtMilliseconds: Int64(now.timeIntervalSince1970 * 1_000),
             projectLabel: projectLabel,
             toolCallID: toolCallID,
-            tool: tool
+            tool: tool,
+            toolName: toolName,
+            interaction: interaction
         )
         try envelope.validate()
         return envelope
@@ -63,6 +94,32 @@ struct CodexHookAdapter {
             CharacterSet.alphanumerics.union(CharacterSet(charactersIn: " ._-" )).contains($0)
         }.prefix(64))
         return safe.isEmpty ? nil : safe
+    }
+
+    private static func interactionID(kind: WireInteraction.Kind, sessionID: String, turnID: String,
+                                      toolCallID: String?, toolName: String) -> String {
+        let identity = [kind.rawValue, sessionID, turnID, toolCallID ?? toolName].joined(separator: "\u{0}")
+        let digest = SHA256.hash(data: Data(identity.utf8))
+        return String(digest.map { String(format: "%02x", $0) }.joined().prefix(32))
+    }
+
+    private static func questionPreview(from input: Any?) -> String? {
+        guard let object = input as? [String: Any] else { return nil }
+        let candidate: String?
+        if let questions = object["questions"] as? [[String: Any]] {
+            candidate = questions.first?["question"] as? String
+        } else {
+            candidate = object["question"] as? String
+        }
+        guard let text = candidate?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty, !text.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
+            return nil
+        }
+        let normalized = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        let lower = normalized.lowercased()
+        let sensitiveMarkers = ["/users/", "/home/", "api_key", "api-key", "token=", "secret", "password", "bearer "]
+        guard !sensitiveMarkers.contains(where: lower.contains) else { return nil }
+        return String(normalized.prefix(240))
     }
 
     private static func activity(for toolName: String, input: Any?) -> ToolActivity {

@@ -56,6 +56,7 @@ private struct CursorCreature: Shape {
 struct Nudgie: View {
     let pose: MascotPose
     let celebrationPulse: Int
+    let attentionPulse: Int
     let reduceMotion: Bool
     let isSleeping: Bool
 
@@ -90,6 +91,17 @@ struct Nudgie: View {
                 do { try await Task.sleep(for: .milliseconds(290)) }
                 catch { return }
                 withAnimation(.spring(response: 0.24, dampingFraction: 0.72)) { hop = 0 }
+                hopTask = nil
+            }
+        }
+        .onChange(of: attentionPulse, initial: false) { _, pulse in
+            guard pulse > 0, !reduceMotion, !isSleeping else { return }
+            hopTask?.cancel()
+            withAnimation(.spring(response: 0.30, dampingFraction: 0.82)) { hop = -2 }
+            hopTask = Task { @MainActor in
+                do { try await Task.sleep(for: .milliseconds(240)) }
+                catch { return }
+                withAnimation(.easeOut(duration: 0.18)) { hop = 0 }
                 hopTask = nil
             }
         }

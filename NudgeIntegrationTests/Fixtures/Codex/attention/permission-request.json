@@ -1,0 +1,11 @@
+{
+  "session_id": "synthetic-attention-session",
+  "turn_id": "synthetic-permission-turn",
+  "cwd": "/tmp/nudge-synthetic-project",
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "rm -rf /tmp/SYNTHETIC_SECRET",
+    "description": "SYNTHETIC_SECRET_MUST_NOT_REACH_WIRE"
+  }
+}

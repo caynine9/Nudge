@@ -474,8 +474,8 @@ final class AppState: ObservableObject {
 
     func showPanel() {
         wantsPanelVisible = true
-        if !presentation.pinnedOpen {
-            dispatch(.togglePinned)
+        if !presentation.isExpanded {
+            dispatch(.expand)
         }
     }
 

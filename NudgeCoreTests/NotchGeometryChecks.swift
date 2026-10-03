@@ -18,7 +18,7 @@ struct NotchGeometryChecks {
         precondition(compact.midX == -722 && compact.maxY == screen.maxY, "Anchor must follow the actual cutout")
         precondition(compact.minX >= screen.minX && compact.maxX <= screen.maxX)
         let pointerOnTrigger = CGPoint(x: compact.minX + 27, y: compact.midY)
-        let openFrame = geometry.frame(for: .peek)
+        let openFrame = geometry.frame(for: .expanded)
         precondition(openFrame.maxY == compact.maxY)
         precondition(geometry.containsInteractionPoint(pointerOnTrigger, panelFrame: openFrame),
                      "Expand must retain the original compact hover trigger")

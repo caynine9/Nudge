@@ -1,6 +1,67 @@
 import XCTest
 
 final class PresentationReducerTests: XCTestCase {
+    func testHoverOpensExpandedAndLeavingClosesIt() {
+        let reducer = PresentationReducer()
+        var state = PresentationState()
+        state.snapshot = snapshot(session: "s", turn: "t", phase: .thinking)
+        let entered = reducer.reduce(state, .pointerChanged(true)).state
+        XCTAssertEqual(entered.mode, .collapsed)
+        let opened = reducer.reduce(entered, .timerElapsed(.hover, generation: entered.hoverGeneration)).state
+        XCTAssertEqual(opened.mode, .expanded)
+
+        let exited = reducer.reduce(opened, .pointerChanged(false)).state
+        XCTAssertEqual(exited.mode, .expanded)
+        let closed = reducer.reduce(exited, .timerElapsed(.collapse, generation: exited.collapseGeneration)).state
+        XCTAssertEqual(closed.mode, .collapsed)
+    }
+
+    func testRapidPointerReentryRejectsOldCloseAndOpenTimers() {
+        let reducer = PresentationReducer()
+        var state = PresentationState()
+        state.snapshot = snapshot(session: "s", turn: "t", phase: .toolUse)
+        let firstEntry = reducer.reduce(state, .pointerChanged(true)).state
+        let quickExit = reducer.reduce(firstEntry, .pointerChanged(false)).state
+        XCTAssertEqual(reducer.reduce(quickExit, .timerElapsed(.hover, generation: firstEntry.hoverGeneration)).state.mode,
+                       .collapsed)
+
+        let reentry = reducer.reduce(quickExit, .pointerChanged(true)).state
+        let opened = reducer.reduce(reentry, .timerElapsed(.hover, generation: reentry.hoverGeneration)).state
+        let exited = reducer.reduce(opened, .pointerChanged(false)).state
+        let returned = reducer.reduce(exited, .pointerChanged(true)).state
+        XCTAssertEqual(reducer.reduce(returned, .timerElapsed(.collapse, generation: exited.collapseGeneration)).state.mode,
+                       .expanded)
+    }
+
+    func testClickExpansionDoesNotPinPanelAfterPointerLeaves() {
+        let reducer = PresentationReducer()
+        var state = PresentationState()
+        state.snapshot = snapshot(session: "s", turn: "t", phase: .thinking)
+        let entered = reducer.reduce(state, .pointerChanged(true)).state
+        let clicked = reducer.reduce(entered, .toggleExpanded).state
+        XCTAssertEqual(clicked.mode, .expanded)
+        let exited = reducer.reduce(clicked, .pointerChanged(false)).state
+        XCTAssertEqual(reducer.reduce(exited, .timerElapsed(.collapse, generation: exited.collapseGeneration)).state.mode,
+                       .collapsed)
+
+        let escaped = reducer.reduce(clicked, .collapse).state
+        XCTAssertEqual(reducer.reduce(escaped, .timerElapsed(.hover, generation: entered.hoverGeneration)).state.mode,
+                       .collapsed)
+    }
+
+    func testLeavingExpandedAttentionListPreservesUnansweredRequest() {
+        let reducer = PresentationReducer()
+        var state = PresentationState()
+        state.snapshot = snapshot(session: "s", turn: "t", phase: .waitingInput)
+        state.pointerInside = true
+        let listed = reducer.reduce(state, .toggleSessionList).state
+        let exited = reducer.reduce(listed, .pointerChanged(false)).state
+        let closed = reducer.reduce(exited, .timerElapsed(.collapse, generation: exited.collapseGeneration)).state
+        XCTAssertEqual(closed.mode, .attention)
+        XCTAssertEqual(closed.snapshot, state.snapshot)
+        XCTAssertFalse(closed.showsSessionList)
+    }
+
     func testCompletionIdentityIncludesSessionAndTurn() {
         let reducer = PresentationReducer()
         var state = PresentationState()

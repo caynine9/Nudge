@@ -6,7 +6,7 @@ struct PresentationChecks {
         var waiting = PresentationState()
         waiting.snapshot = PlaygroundScenario.snapshot(turn: 1, phase: .waitingInput)
         waiting.pointerInside = true
-        waiting.pinnedOpen = true
+        waiting.isExpanded = true
         let receipt = InteractionFeedback(label: "Production", kind: .selected)
         let progress = PlaygroundScenario.snapshot(turn: 1, phase: .toolUse)
 
@@ -21,7 +21,7 @@ struct PresentationChecks {
         precondition(reducer.reduce(waiting, .previewInteractionResolved(wrongTurn, receipt)).state == waiting)
 
         let resolved = reducer.reduce(waiting, .previewInteractionResolved(progress, receipt))
-        precondition(resolved.state.mode == .confirmation && !resolved.state.pinnedOpen)
+        precondition(resolved.state.mode == .confirmation && !resolved.state.isExpanded)
         precondition(resolved.state.snapshot.phase == .toolUse)
         precondition(!resolved.effects.contains { if case .celebrate = $0 { return true }; return false })
         precondition(resolved.state.consumedCompletionTurnID == nil, "Decision feedback is not turn completion")

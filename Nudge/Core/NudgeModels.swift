@@ -195,7 +195,6 @@ struct ActivityMonitorSnapshot: Equatable, Sendable {
 
 enum NotchPresentation: Equatable, CaseIterable {
     case collapsed
-    case peek
     case expanded
     case attention
     case confirmation
@@ -208,7 +207,7 @@ struct InteractionFeedback: Equatable {
 }
 
 enum PresentationTimer: Hashable {
-    case peek
+    case hover
     case collapse
     case transient
     case feedback
@@ -217,8 +216,7 @@ enum PresentationTimer: Hashable {
 struct PresentationState: Equatable {
     var snapshot = ActivitySnapshot.empty
     var pointerInside = false
-    var peekVisible = false
-    var pinnedOpen = false
+    var isExpanded = false
     var showsSessionList = false
     var isSleeping = false
     var feedback: InteractionFeedback?
@@ -230,7 +228,7 @@ struct PresentationState: Equatable {
     var consumedCompletionKeys: [String] = []
     var consumedFailureKeys: [String] = []
     var lastWakeAt = Date.distantPast
-    var peekGeneration = 0
+    var hoverGeneration = 0
     var collapseGeneration = 0
     var transientGeneration = 0
 
@@ -239,8 +237,7 @@ struct PresentationState: Equatable {
         if snapshot.phase.isAttention { return .attention }
         if feedback != nil { return .confirmation }
         if transientPhase != nil { return .expanded }
-        if pinnedOpen { return .expanded }
-        if peekVisible { return .peek }
+        if isExpanded { return .expanded }
         return .collapsed
     }
 }
@@ -249,7 +246,8 @@ enum PresentationInput {
     case snapshotChanged(ActivitySnapshot)
     case previewInteractionResolved(ActivitySnapshot, InteractionFeedback)
     case pointerChanged(Bool)
-    case togglePinned
+    case toggleExpanded
+    case expand
     case toggleSessionList
     case collapse
     case timerElapsed(PresentationTimer, generation: Int)

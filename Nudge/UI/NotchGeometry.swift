@@ -69,14 +69,12 @@ struct NotchGeometry: Equatable {
         let desired: CGSize
         switch (kind, mode) {
         case (.notch, .collapsed): desired = CGSize(width: compactWidth, height: bandHeight)
-        case (.notch, .peek): desired = CGSize(width: max(compactWidth, 410), height: notchHeight + 132)
         case (.notch, .expanded): desired = CGSize(width: max(compactWidth, 480), height: notchHeight + expandedHeight)
         case (.notch, .attention):
             desired = CGSize(width: max(compactWidth, phase == .waitingInput ? 340 : 380),
                              height: notchHeight + (phase == .waitingInput ? 192 : 224))
         case (.notch, .confirmation): desired = CGSize(width: max(compactWidth, 260), height: notchHeight + 46)
         case (.standard, .collapsed): desired = CGSize(width: compactWidth, height: 38)
-        case (.standard, .peek): desired = CGSize(width: 410, height: 132)
         case (.standard, .expanded): desired = CGSize(width: 480, height: expandedHeight)
         case (.standard, .attention):
             desired = CGSize(width: phase == .waitingInput ? 340 : 380, height: phase == .waitingInput ? 192 : 224)

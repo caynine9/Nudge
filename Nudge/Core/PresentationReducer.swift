@@ -70,7 +70,7 @@ struct PresentationReducer {
                 effects.append(.cancel(.collapse))
             } else {
                 next.showsSessionList = false
-                if state.snapshot.phase.isAttention && next.pointerInside { next.peekVisible = true }
+                if state.snapshot.phase.isAttention && next.pointerInside { next.isExpanded = true }
             }
 
         case let .previewInteractionResolved(snapshot, feedback):
@@ -83,14 +83,13 @@ struct PresentationReducer {
             effects = progress.effects
             next.feedback = feedback
             next.feedbackGeneration += 1
-            next.pinnedOpen = false
-            next.peekVisible = false
+            next.isExpanded = false
             next.transientPhase = nil
             next.transientPresentationKey = nil
-            next.peekGeneration += 1
+            next.hoverGeneration += 1
             next.collapseGeneration += 1
             next.transientGeneration += 1
-            effects += [.cancel(.peek), .cancel(.collapse), .cancel(.transient),
+            effects += [.cancel(.hover), .cancel(.collapse), .cancel(.transient),
                         .schedule(.feedback, after: .seconds(1.4), generation: next.feedbackGeneration)]
 
         case let .pointerChanged(isInside):
@@ -98,69 +97,72 @@ struct PresentationReducer {
                 return PresentationTransition(state: state)
             }
             next.pointerInside = isInside
+            next.hoverGeneration += 1
             if isInside {
-                next.peekGeneration += 1
                 next.collapseGeneration += 1
                 effects.append(.cancel(.collapse))
-                effects.append(.schedule(.peek, after: .milliseconds(100), generation: next.peekGeneration))
+                effects.append(.schedule(.hover, after: .milliseconds(100), generation: next.hoverGeneration))
             } else {
-                next.peekGeneration += 1
-                effects.append(.cancel(.peek))
-                if next.peekVisible && !next.pinnedOpen && next.transientPhase == nil && !next.snapshot.phase.isAttention && next.feedback == nil {
+                effects.append(.cancel(.hover))
+                if next.isExpanded || next.showsSessionList || next.transientPhase != nil {
                     next.collapseGeneration += 1
                     effects.append(.schedule(.collapse, after: .milliseconds(320), generation: next.collapseGeneration))
                 }
             }
 
-        case .togglePinned:
+        case .expand, .toggleExpanded:
             guard !next.isSleeping, next.feedback == nil else { return PresentationTransition(state: state) }
-            next.pinnedOpen.toggle()
-            if next.pinnedOpen {
-                next.collapseGeneration += 1
-                effects.append(.cancel(.collapse))
-            } else if next.pointerInside && next.transientPhase == nil && !next.snapshot.phase.isAttention && next.feedback == nil {
-                next.peekVisible = true
+            if case .toggleExpanded = input, next.mode == .expanded {
+                return reduce(state, .collapse, now: now)
+            }
+            next.isExpanded = true
+            next.hoverGeneration += 1
+            next.collapseGeneration += 1
+            effects += [.cancel(.hover), .cancel(.collapse)]
+            if !next.pointerInside {
+                effects.append(.schedule(.collapse, after: .milliseconds(320), generation: next.collapseGeneration))
             }
 
         case .toggleSessionList:
             guard !next.isSleeping, next.snapshot.phase.isAttention else { return PresentationTransition(state: state) }
             next.showsSessionList.toggle()
-            next.pinnedOpen = false
-            next.peekVisible = false
+            next.isExpanded = false
 
         case .collapse:
-            next.pinnedOpen = false
             next.showsSessionList = false
-            next.peekGeneration += 1
-            next.peekVisible = false
+            next.hoverGeneration += 1
+            next.isExpanded = false
             next.collapseGeneration += 1
-            effects += [.cancel(.peek), .cancel(.collapse)]
+            next.transientPhase = nil
+            next.transientPresentationKey = nil
+            next.transientGeneration += 1
+            effects += [.cancel(.hover), .cancel(.collapse), .cancel(.transient)]
 
         case let .timerElapsed(timer, generation):
             switch timer {
-            case .peek:
-                guard generation == next.peekGeneration, next.pointerInside, !next.pinnedOpen,
+            case .hover:
+                guard generation == next.hoverGeneration, next.pointerInside, !next.isExpanded,
                       next.transientPhase == nil, !next.snapshot.phase.isAttention, next.feedback == nil, !next.isSleeping
                 else { return PresentationTransition(state: state) }
-                next.peekVisible = true
+                next.isExpanded = true
             case .collapse:
-                guard generation == next.collapseGeneration, !next.pointerInside, !next.pinnedOpen,
-                      next.transientPhase == nil, !next.snapshot.phase.isAttention, next.feedback == nil
+                guard generation == next.collapseGeneration, !next.pointerInside, !next.isSleeping,
+                      next.feedback == nil
                 else { return PresentationTransition(state: state) }
-                next.peekVisible = false
+                return reduce(next, .collapse, now: now)
             case .feedback:
                 guard generation == next.feedbackGeneration, !next.isSleeping else {
                     return PresentationTransition(state: state)
                 }
                 next.feedback = nil
-                next.peekVisible = false
+                next.isExpanded = false
             case .transient:
                 guard generation == next.transientGeneration, !next.isSleeping else {
                     return PresentationTransition(state: state)
                 }
                 next.transientPhase = nil
                 next.transientPresentationKey = nil
-                if next.pointerInside { next.peekVisible = true }
+                if next.pointerInside { next.isExpanded = true }
             }
 
         case .sleep:
@@ -169,13 +171,13 @@ struct PresentationReducer {
             next.feedback = nil
             next.feedbackGeneration += 1
             next.pointerInside = false
-            next.peekVisible = false
+            next.isExpanded = false
             next.transientPhase = nil
             next.transientPresentationKey = nil
-            next.peekGeneration += 1
+            next.hoverGeneration += 1
             next.collapseGeneration += 1
             next.transientGeneration += 1
-            effects = [.cancel(.peek), .cancel(.collapse), .cancel(.transient), .cancel(.feedback)]
+            effects = [.cancel(.hover), .cancel(.collapse), .cancel(.transient), .cancel(.feedback)]
 
         case .wake:
             guard next.isSleeping else { return PresentationTransition(state: state) }

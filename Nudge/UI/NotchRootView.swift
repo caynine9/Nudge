@@ -25,7 +25,7 @@ struct NotchRootView: View {
     var availableHeight: CGFloat = .infinity
     var visibleSizeChanged: ((CGSize) -> Void)? = nil
     @State private var lastOpenSize: CGSize?
-    @State private var lastOpenMode: NotchPresentation = .peek
+    @State private var lastOpenMode: NotchPresentation = .expanded
     @State private var lastFeedback: InteractionFeedback?
     @State private var scrollAnchorSessionID: String?
     @State private var sessionScrollMetrics = SessionScrollMetrics()
@@ -55,14 +55,14 @@ struct NotchRootView: View {
 
     private var contentMode: NotchPresentation { mode == .collapsed ? lastOpenMode : mode }
     private var displaysUsageLimits: Bool {
-        (mode == .peek || mode == .expanded) && !phase.isAttention
+        mode == .expanded && !phase.isAttention
     }
 
     private var openSize: CGSize {
         if mode != .collapsed { return targetSize }
         if let lastOpenSize { return lastOpenSize }
         let preferred = NotchGeometry.preferredSize(kind: displayKind, compactWidth: compactWidth,
-                                                   notchHeight: notchHeight, mode: .peek, phase: phase,
+                                                   notchHeight: notchHeight, mode: .expanded, phase: phase,
                                                    activeSessionCount: appState.activeSessions.count)
         return CGSize(width: min(preferred.width, availableWidth),
                       height: min(preferred.height, availableHeight))
@@ -90,6 +90,11 @@ struct NotchRootView: View {
                     .frame(maxWidth: .infinity).frame(height: 46)
             } else {
                 content
+                    // Reserve the insets in the shell's fixed height. A child's
+                    // minimum size must not push the bottom padding offscreen.
+                    .frame(height: max(0, openSize.height - (isNotched ? notchHeight : 0) - 38),
+                           alignment: .topLeading)
+                    .clipped()
                     .padding(.horizontal, isNotched ? 28 : 16)
                     .padding(.top, 16).padding(.bottom, 22)
             }
@@ -196,16 +201,16 @@ struct NotchRootView: View {
         }
         .frame(width: compactWidth, height: notchHeight + 2)
         .contentShape(Rectangle())
-        .onTapGesture { appState.dispatch(.togglePinned) }
+        .onTapGesture { appState.dispatch(.toggleExpanded) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(focusedTitle), \(displayedPhaseTitle)\(isDemo ? ", demo" : "")")
-        .accessibilityHint("Expand or collapse the focused session")
+        .accessibilityHint("Show all active Codex sessions")
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction { appState.dispatch(.togglePinned) }
+        .accessibilityAction { appState.dispatch(.toggleExpanded) }
     }
 
     private var minimizedRow: some View {
-        Button { appState.dispatch(.togglePinned) } label: {
+        Button { appState.dispatch(.toggleExpanded) } label: {
             HStack(spacing: 10) {
                 mascot.scaleEffect(0.68).frame(width: 23, height: 24)
                 Text(focusedTitle).font(NotchType.readable(12)).lineLimit(1)
@@ -341,10 +346,7 @@ struct NotchRootView: View {
                     .foregroundStyle(NotchPalette.secondary)
                 }
                 navigationFeedbackButton
-                Spacer()
-                Text(activeSessionsLabel)
-                    .font(NotchType.readable(11))
-                    .foregroundStyle(NotchPalette.secondary)
+                Spacer(minLength: 0)
             }
             if liveSessionsForDisplay.isEmpty {
                 Text("Waiting for local Codex activity.")
@@ -358,7 +360,8 @@ struct NotchRootView: View {
                             switch entry {
                             case let .project(label, count):
                                 liveProjectHeader(label, sessionCount: count,
-                                                  showsCount: liveProjectGroups.count > 1)
+                                                  showsCount: liveProjectGroups.count > 1,
+                                                  isFirst: label == liveProjectGroups.first?.label)
                             case let .session(session):
                                 liveSessionRow(session)
                             }
@@ -390,11 +393,7 @@ struct NotchRootView: View {
                 }
                 .accessibilityLabel("\(appState.activeSessions.count) active Codex sessions")
             } else {
-                VStack(spacing: 0) {
-                    liveProjectHeader(appState.presentation.snapshot.projectLabel, sessionCount: 1,
-                                      showsCount: false)
-                    liveSessionRow(appState.presentation.snapshot)
-                }
+                liveSessionRow(appState.presentation.snapshot)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -444,11 +443,6 @@ struct NotchRootView: View {
         return focused.sessionID.isEmpty ? [] : [focused]
     }
 
-    private var activeSessionsLabel: String {
-        let count = appState.activeSessions.count
-        return count == 1 ? "1 active session" : "\(count) active sessions"
-    }
-
     private enum LiveListEntry: Identifiable {
         case project(String, Int)
         case session(ActivitySnapshot)
@@ -471,7 +465,8 @@ struct NotchRootView: View {
         }
     }
 
-    private func liveProjectHeader(_ label: String, sessionCount: Int, showsCount: Bool) -> some View {
+    private func liveProjectHeader(_ label: String, sessionCount: Int, showsCount: Bool,
+                                   isFirst: Bool = false) -> some View {
         HStack(spacing: 7) {
             Image(systemName: "folder.fill")
                 .font(NotchType.readable(10))
@@ -488,7 +483,7 @@ struct NotchRootView: View {
             }
         }
         .padding(.horizontal, 8)
-        .padding(.top, 8)
+        .padding(.top, isFirst ? 4 : 10)
         .padding(.bottom, 4)
         .accessibilityAddTraits(.isHeader)
     }
@@ -565,7 +560,7 @@ struct NotchRootView: View {
     private var demoMonitor: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                if contentMode == .peek || contentMode == .expanded {
+                if contentMode == .expanded {
                     usageLimits
                 }
                 Spacer(minLength: 0)

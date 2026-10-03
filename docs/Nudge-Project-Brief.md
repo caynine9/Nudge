@@ -114,7 +114,7 @@ Nudge can deliberately avoid most of this.
 Nudge can be opinionated:
 
 - Codex-first.
-- Collapsed and hover-peek give one **focused session/project** visual priority.
+- Collapsed gives one **focused session/project** visual priority. Hover opens the expanded session list directly; leaving closes it after a short hysteresis delay. There is no separate hover-peek or persistent pin (user clarification, 3 October 2026).
 - Expanded may list every detected active Codex session as direct rows. Keep its viewport compact and fixed at 10 pt above its one-session expanded height, then scroll; this is context glanceability, not a session history/fleet dashboard.
 - Native Codex notifications remain useful; Nudge does not have to duplicate every notification feature.
 - Usage/quota tracking is optional and can be omitted from MVP.
@@ -1248,9 +1248,9 @@ Separate **session phase** from **presentation mode**.
 ```swift
 enum NotchPresentation {
     case collapsed
-    case peek
     case expanded
     case attention
+    case confirmation
 }
 ```
 
@@ -1290,19 +1290,15 @@ status/tool summary
 mascot
 ```
 
-### Peek / hover
+### Hover / expanded monitor
 
 ```text
-width: 360–430 pt
-height: 70–110 pt
+width: 480 pt
+height: 160 pt for one session, 170 pt for multiple sessions
+        plus the camera band on notched displays
 ```
 
-Could show:
-
-- project,
-- elapsed turn time,
-- current tool,
-- one-line status.
+Hover opens the expanded monitor directly, with usage, project groups, active-session rows, and bounded tool detail. Additional sessions scroll within this fixed viewport. Leaving closes it after the hysteresis delay; there is no intermediate peek or persistent pin.
 
 ### Completion expanded
 
@@ -1584,7 +1580,7 @@ Suggested:
 ```text
 hover enter:
     wait ~80–120 ms
-    then peek
+    then expanded
 
 hover exit:
     wait ~250–400 ms
@@ -2221,7 +2217,7 @@ case .toolChanged:
     }
 
 case .hoverEntered:
-    presentation = .peek
+    presentation = .expanded
 
 case .hoverExited:
     delayedCollapse()

@@ -20,8 +20,7 @@ struct NotchLayoutChecks {
                     state.snapshot = PlaygroundScenario.snapshot(turn: 1, phase: mode == .attention ? phase : .thinking)
                     switch mode {
                     case .collapsed: break
-                    case .peek: state.peekVisible = true
-                    case .expanded: state.pinnedOpen = true
+                    case .expanded: state.isExpanded = true
                     case .attention:
                         if !phase.isAttention { continue }
                     case .confirmation: state.feedback = .init(label: "Allowed once", kind: .allowed)
@@ -76,7 +75,7 @@ struct NotchLayoutChecks {
                 }
                 var state = PresentationState()
                 state.snapshot = sessions[0]
-                state.pinnedOpen = true
+                state.isExpanded = true
                 let titles = Dictionary(uniqueKeysWithValues: sessions.map { session in
                     (session.sessionID, session.sessionID.hasSuffix("1")
                         ? "Improve session status and navigation"

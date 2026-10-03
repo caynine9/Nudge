@@ -14,7 +14,7 @@ Developers working locally in Codex Desktop or CLI who switch to another Mac app
 
 ## Product Purpose
 
-A small menu-bar companion that presents one focused Codex context in collapsed and hover-peek modes, with a fallback for non-notch displays. Expanded mode lists every active session Nudge has detected. Make work, attention, completion, failure, and interruption easy to see, then return the user to Codex.
+A small menu-bar companion that presents one focused Codex context when collapsed, with a fallback for non-notch displays. Hover opens the expanded list of every active session Nudge has detected; leaving closes it. Make work, attention, completion, failure, and interruption easy to see, then return the user to Codex.
 
 ## Operating Context
 

@@ -17,7 +17,7 @@ Alur utama:
 5. Pengguna membuka Codex dari Nudge untuk melanjutkan konteks yang relevan.
 6. Nudge kembali tenang setelah perhatian tidak lagi diperlukan.
 
-Produk harus terasa seperti companion Mac yang kecil, fokus, responsif, dan polished. Collapsed dan hover peek memprioritaskan satu konteks; expanded boleh menampilkan semua sesi Codex aktif sebagai daftar ringkas yang dapat di-scroll. Jangan mengubahnya menjadi dashboard operasi multi-agent.
+Produk harus terasa seperti companion Mac yang kecil, fokus, responsif, dan polished. Collapsed memprioritaskan satu konteks; hover langsung membuka expanded yang menampilkan semua sesi Codex aktif sebagai daftar ringkas yang dapat di-scroll. Cursor keluar menutup expanded setelah jeda singkat; tidak ada hover peek terpisah atau pin permanen. Jangan mengubahnya menjadi dashboard operasi multi-agent.
 
 ## Status Repository Saat Ini
 
@@ -38,7 +38,7 @@ Produk awal harus:
 - mendukung **Codex macOS app / Desktop secara wajib**, termasuk local new dan resumed threads yang dimulai langsung dari app;
 - juga mendukung Codex CLI; integrasi CLI saja **tidak memenuhi acceptance criteria MVP**;
 - tidak mewajibkan pengguna membuka terminal atau menjalankan app-server milik Nudge untuk memantau aktivitas Desktop;
-- memprioritaskan satu focused context pada collapsed dan hover peek;
+- memprioritaskan satu focused context pada collapsed; hover membuka expanded dan cursor keluar menutupnya;
 - menampilkan semua sesi Codex aktif yang terdeteksi sebagai daftar ringkas di expanded, dengan cap tinggi expanded saat ini + 10 pt dan scroll;
 - menjadi aplikasi menu-bar/accessory dengan notch overlay dan fallback untuk layar tanpa notch;
 - memakai lifecycle hooks sebagai jalur aktivitas utama setelah kompatibilitas kedua host diverifikasi;
@@ -185,7 +185,7 @@ NudgeSettings
 
 Session setidaknya menampung stable identity, optional thread/turn ID, cwd/project label, semantic phase, current tool, timestamps, optional host metadata, pending interaction, dan lifecycle confidence. Assistant preview bersifat optional dan dibatasi.
 
-Phase mengikuti brief: `discovered`, `idle`, `thinking`, `toolUse`, `waitingPermission`, `waitingInput`, `completed`, `failed`, `interrupted`, `ended`. Presentation: `collapsed`, `peek`, `expanded`, `attention`. Interrupted tidak boleh dipresentasikan sebagai success.
+Phase mengikuti brief: `discovered`, `idle`, `thinking`, `toolUse`, `waitingPermission`, `waitingInput`, `completed`, `failed`, `interrupted`, `ended`. Presentation: `collapsed`, `expanded`, `attention`, `confirmation`; hover memakai expanded. Interrupted tidak boleh dipresentasikan sebagai success.
 
 ## Notch, Mascot, dan Motion
 
@@ -213,7 +213,7 @@ Fase mengikuti milestone M0–M6 dalam brief. Kerjakan satu fase per sesi, kemud
 
 ### Fase 1 / M0 — Notch Playground
 
-Ruang lingkup: project macOS, menu-bar accessory shell, NSPanel, notch/non-notch geometry, collapsed/peek/expanded/attention, fake phase picker, original Nudgie, motion, hover hysteresis, dan Reduce Motion. Belum ada live Codex integration.
+Ruang lingkup: project macOS, menu-bar accessory shell, NSPanel, notch/non-notch geometry, collapsed/expanded/attention, fake phase picker, original Nudgie, motion, hover hysteresis, dan Reduce Motion. Belum ada live Codex integration.
 
 Kriteria selesai: app dapat menyimulasikan seluruh visible states dengan motion yang halus, tanpa focus steal/clipping, dan fallback tanpa notch berfungsi.
 

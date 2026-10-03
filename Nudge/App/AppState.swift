@@ -18,18 +18,22 @@ final class AppState: ObservableObject {
     @Published private(set) var integrationStatus = "Waiting for Codex hooks."
     @Published private(set) var socketStatus = "Starting local event listener…"
     @Published private(set) var lastEventAt: Date?
+    @Published private(set) var activeSessions: [ActivitySnapshot] = []
+    @Published private(set) var selectedLiveSessionID: String?
 
     private let reducer = PresentationReducer()
     private var scheduled: [PresentationTimer: Task<Void, Never>] = [:]
     private var turnNumber = 1
-    private var latestLiveSnapshot = ActivitySnapshot.empty
+    private var latestLiveSnapshot = ActivityMonitorSnapshot.empty
     private var selectedCodexHomes: [String: String] =
         UserDefaults.standard.dictionary(forKey: "selectedCodexHomes") as? [String: String] ?? [:]
 
-    init(presentation: PresentationState? = nil, navigationIssue: String? = nil) {
+    init(presentation: PresentationState? = nil, navigationIssue: String? = nil,
+         activeSessions: [ActivitySnapshot] = []) {
         if let presentation { self.presentation = presentation }
         else { self.presentation.snapshot = .empty }
         self.navigationIssue = navigationIssue
+        self.activeSessions = activeSessions
     }
 
     func choose(_ phase: SessionPhase) {
@@ -58,19 +62,51 @@ final class AppState: ObservableObject {
         if enabled {
             dispatch(.snapshotChanged(PlaygroundScenario.snapshot(turn: turnNumber, phase: .thinking)))
         } else {
-            dispatch(.snapshotChanged(latestLiveSnapshot))
+            dispatch(.snapshotChanged(presentationSnapshot(from: latestLiveSnapshot)))
         }
     }
 
     func updateLiveSnapshot(_ snapshot: ActivitySnapshot) {
-        latestLiveSnapshot = snapshot
-        lastEventAt = Date()
-        if !isDemoMode { dispatch(.snapshotChanged(snapshot)) }
+        updateLiveSnapshot(ActivityMonitorSnapshot(
+            focused: snapshot,
+            activeSessions: snapshot.phase.isActive ? [snapshot] : []
+        ))
     }
 
-    func reconcileLiveSnapshotAfterWake(_ snapshot: ActivitySnapshot) {
+    func updateLiveSnapshot(_ snapshot: ActivityMonitorSnapshot) {
         latestLiveSnapshot = snapshot
-        if !isDemoMode { dispatch(.snapshotChanged(snapshot)) }
+        activeSessions = snapshot.activeSessions
+        if let selectedLiveSessionID,
+           !snapshot.activeSessions.contains(where: { $0.sessionID == selectedLiveSessionID }) {
+            self.selectedLiveSessionID = nil
+        }
+        lastEventAt = Date()
+        if !isDemoMode { dispatch(.snapshotChanged(presentationSnapshot(from: snapshot))) }
+    }
+
+    func reconcileLiveSnapshotAfterWake(_ snapshot: ActivityMonitorSnapshot) {
+        latestLiveSnapshot = snapshot
+        activeSessions = snapshot.activeSessions
+        if let selectedLiveSessionID,
+           !snapshot.activeSessions.contains(where: { $0.sessionID == selectedLiveSessionID }) {
+            self.selectedLiveSessionID = nil
+        }
+        if !isDemoMode { dispatch(.snapshotChanged(presentationSnapshot(from: snapshot))) }
+    }
+
+    func selectLiveSession(_ sessionID: String) {
+        guard activeSessions.contains(where: { $0.sessionID == sessionID }) else { return }
+        selectedLiveSessionID = sessionID
+        if !isDemoMode { dispatch(.snapshotChanged(presentationSnapshot(from: latestLiveSnapshot))) }
+    }
+
+    private func presentationSnapshot(from monitor: ActivityMonitorSnapshot) -> ActivitySnapshot {
+        if let waiting = monitor.activeSessions.first(where: { $0.phase.isAttention }) { return waiting }
+        if let selectedLiveSessionID,
+           let selected = monitor.activeSessions.first(where: { $0.sessionID == selectedLiveSessionID }) {
+            return selected
+        }
+        return monitor.focused
     }
 
     func setSocketStatus(_ status: String) { socketStatus = status }
@@ -119,8 +155,8 @@ final class AppState: ObservableObject {
             return
         }
         guard confirmHookChange(
-            title: "Install Codex hooks?",
-            message: "Nudge will add six local lifecycle hooks to:\n\(target.hooksFile.path)\n\nExisting handlers will be preserved. An existing file is backed up before it changes. Review and trust the exact hook definition in Codex afterward."
+            title: "Install or refresh Codex hooks?",
+            message: "Nudge will refresh its local bridge helper, then ensure six lifecycle hooks are registered in:\n\(target.hooksFile.path)\n\nExisting handlers will be preserved. An existing file is backed up before it changes. Review and trust the exact hook definition in Codex afterward."
         ) else { return }
         Task.detached(priority: .userInitiated) { [weak self] in
             let result: HookInstallResult
@@ -167,7 +203,7 @@ final class AppState: ObservableObject {
         case let .installed(backup):
             "Six hooks registered for \(host.title). Review and trust the exact definition in Codex; host coverage remains unverified. Backup: \(backup.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "new file")."
         case .removed: "Nudge hooks removed from the selected config."
-        case .alreadyInstalled: "Nudge hooks are registered; no rewrite was needed. Review trust and host coverage in Codex."
+        case .alreadyInstalled: "The Nudge bridge helper was refreshed. Hooks were already registered, so no config rewrite was needed. Review trust and host coverage in Codex."
         case .notInstalled: "No Nudge-owned hooks were found in the selected config."
         case .malformedExistingConfig: "Config is malformed; bytes were preserved. Repair it manually before retrying."
         case let .unsupportedConfiguration(reason): reason

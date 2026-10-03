@@ -49,9 +49,10 @@ struct NotchGeometry: Equatable {
         }
     }
 
-    func size(for mode: NotchPresentation, phase: SessionPhase = .thinking) -> CGSize {
+    func size(for mode: NotchPresentation, phase: SessionPhase = .thinking,
+              activeSessionCount: Int = 1) -> CGSize {
         let desired = Self.preferredSize(kind: kind, compactWidth: compactWidth, notchHeight: notchHeight,
-                                         mode: mode, phase: phase)
+                                         mode: mode, phase: phase, activeSessionCount: activeSessionCount)
         return CGSize(width: min(desired.width, availableWidth),
                       height: min(desired.height, max(0, screenFrame.height - 32)))
     }
@@ -61,20 +62,22 @@ struct NotchGeometry: Equatable {
     }
 
     static func preferredSize(kind: DisplayKind, compactWidth: CGFloat, notchHeight: CGFloat,
-                              mode: NotchPresentation, phase: SessionPhase) -> CGSize {
+                              mode: NotchPresentation, phase: SessionPhase,
+                              activeSessionCount: Int = 1) -> CGSize {
         let bandHeight = notchHeight + 2
+        let expandedHeight: CGFloat = 160 + (activeSessionCount > 1 ? 10 : 0)
         let desired: CGSize
         switch (kind, mode) {
         case (.notch, .collapsed): desired = CGSize(width: compactWidth, height: bandHeight)
         case (.notch, .peek): desired = CGSize(width: max(compactWidth, 380), height: notchHeight + 132)
-        case (.notch, .expanded): desired = CGSize(width: max(compactWidth, 380), height: notchHeight + 160)
+        case (.notch, .expanded): desired = CGSize(width: max(compactWidth, 380), height: notchHeight + expandedHeight)
         case (.notch, .attention):
             desired = CGSize(width: max(compactWidth, phase == .waitingInput ? 340 : 380),
                              height: notchHeight + (phase == .waitingInput ? 192 : 224))
         case (.notch, .confirmation): desired = CGSize(width: max(compactWidth, 260), height: notchHeight + 46)
         case (.standard, .collapsed): desired = CGSize(width: compactWidth, height: 38)
         case (.standard, .peek): desired = CGSize(width: 380, height: 132)
-        case (.standard, .expanded): desired = CGSize(width: 380, height: 160)
+        case (.standard, .expanded): desired = CGSize(width: 380, height: expandedHeight)
         case (.standard, .attention):
             desired = CGSize(width: phase == .waitingInput ? 340 : 380, height: phase == .waitingInput ? 192 : 224)
         case (.standard, .confirmation): desired = CGSize(width: 260, height: 46)

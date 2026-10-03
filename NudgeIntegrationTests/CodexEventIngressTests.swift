@@ -16,8 +16,8 @@ final class CodexEventIngressTests: XCTestCase {
         ingress.submit(envelope(.stop, turn: "turn", at: origin.addingTimeInterval(3)))
 
         let restored = await ingress.snapshotAfterPendingEvents()
-        XCTAssertEqual(restored.phase, .completed)
-        XCTAssertEqual(restored.turnID, "turn")
+        XCTAssertEqual(restored.focused.phase, .completed)
+        XCTAssertEqual(restored.focused.turnID, "turn")
         let phases = await capture.phases
         XCTAssertEqual(phases, [.thinking, .toolUse, .thinking, .completed])
         ingress.finish()
@@ -35,7 +35,7 @@ final class CodexEventIngressTests: XCTestCase {
 private actor SnapshotCapture {
     private(set) var phases: [SessionPhase] = []
 
-    func append(_ snapshot: ActivitySnapshot) {
-        phases.append(snapshot.phase)
+    func append(_ snapshot: ActivityMonitorSnapshot) {
+        phases.append(snapshot.focused.phase)
     }
 }

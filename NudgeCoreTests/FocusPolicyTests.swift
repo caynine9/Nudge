@@ -42,6 +42,23 @@ final class FocusPolicyTests: XCTestCase {
         XCTAssertNil(waiting.snapshot.currentTool)
     }
 
+    func testExpandedActiveOrderUsesPendingPriorityThenTurnStartNotRecentToolTime() {
+        let now = Date(timeIntervalSince1970: 8_000)
+        var older = make("older", .toolUse, now.addingTimeInterval(-1))
+        older.turnStartedAt = now.addingTimeInterval(-10)
+        var newer = make("newer", .toolUse, now)
+        newer.turnStartedAt = now.addingTimeInterval(-2)
+
+        let policy = FocusPolicy()
+        XCTAssertEqual(policy.orderedActiveSessions([older, newer]).map(\.id), ["newer", "older"])
+
+        var waiting = make("waiting", .thinking, now.addingTimeInterval(-20))
+        waiting.turnStartedAt = now.addingTimeInterval(-100)
+        waiting.pendingInteraction = PendingInteraction(id: "q", kind: .question)
+        waiting.pendingInteractionStartedAt = now.addingTimeInterval(-1)
+        XCTAssertEqual(policy.orderedActiveSessions([older, newer, waiting]).map(\.id), ["waiting", "newer", "older"])
+    }
+
     private func make(_ id: String, _ phase: SessionPhase, _ at: Date) -> CodexSessionState {
         CodexSessionState(id: id, turnID: "turn-\(id)", projectLabel: id, phase: phase,
                           activeTools: [:], lastActivityAt: at, completedTurnIDs: [])

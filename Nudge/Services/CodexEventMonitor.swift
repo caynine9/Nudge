@@ -16,7 +16,7 @@ actor CodexEventMonitor {
         _ envelope: WireEnvelope,
         now: Date = Date(),
         monotonicNow: UInt64 = DispatchTime.now().uptimeNanoseconds
-    ) -> ActivitySnapshot {
+    ) -> ActivityMonitorSnapshot {
         let event = Self.event(from: envelope)
         pruneRecentEvents(at: monotonicNow)
 
@@ -27,7 +27,7 @@ actor CodexEventMonitor {
         if duplicate {
             if let enriched = reducer.enrichMetadata(current, event: event) { sessions[event.sessionID] = enriched }
             pruneIdleSessions(at: now)
-            return focusedSnapshot(at: now)
+            return monitorSnapshot(at: now)
         }
 
         let transition = reducer.reduce(current, event: event)
@@ -39,14 +39,14 @@ actor CodexEventMonitor {
         }
 
         pruneIdleSessions(at: now)
-        return focusedSnapshot(at: now)
+        return monitorSnapshot(at: now)
     }
 
     func select(sessionID: String?) { selectedSessionID = sessionID }
 
-    func currentSnapshot(now: Date = Date()) -> ActivitySnapshot {
+    func currentSnapshot(now: Date = Date()) -> ActivityMonitorSnapshot {
         pruneIdleSessions(at: now)
-        return focusedSnapshot(at: now)
+        return monitorSnapshot(at: now)
     }
 
     private func pruneRecentEvents(at now: UInt64) {
@@ -75,9 +75,12 @@ actor CodexEventMonitor {
         for session in expired { sessions.removeValue(forKey: session.id) }
     }
 
-    private func focusedSnapshot(at now: Date) -> ActivitySnapshot {
-        focusPolicy.focused(sessions: Array(sessions.values), explicitlySelectedID: selectedSessionID, now: now)?.snapshot
+    private func monitorSnapshot(at now: Date) -> ActivityMonitorSnapshot {
+        let values = Array(sessions.values)
+        let focused = focusPolicy.focused(sessions: values, explicitlySelectedID: selectedSessionID, now: now)?.snapshot
             ?? .empty
+        let active = focusPolicy.orderedActiveSessions(values).map(\.snapshot)
+        return ActivityMonitorSnapshot(focused: focused, activeSessions: active)
     }
 
     private static func event(from envelope: WireEnvelope) -> NudgeEvent {

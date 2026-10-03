@@ -46,19 +46,50 @@ final class WireAdapterTests: XCTestCase {
         let first = makeEnvelope(.preToolUse, session: "long", turn: "opaque-turn", at: startedAt,
                                  toolID: "tool", tool: tool)
         let initial = await monitor.consume(first, now: startedAt, monotonicNow: 1_000)
-        XCTAssertEqual(initial.phase, .toolUse)
+        XCTAssertEqual(initial.focused.phase, .toolUse)
 
         // Identical normalized tool identity is a duplicate, but a newly valid
         // project label still enriches the placeholder session.
         let enriched = makeEnvelope(.preToolUse, session: "long", turn: "opaque-turn",
                                     at: startedAt.addingTimeInterval(0.1), project: "Sandbox", toolID: "tool", tool: tool)
         let afterDuplicate = await monitor.consume(enriched, now: startedAt.addingTimeInterval(0.1), monotonicNow: 1_100)
-        XCTAssertEqual(afterDuplicate.projectLabel, "Sandbox")
-        XCTAssertEqual(afterDuplicate.phase, .toolUse)
+        XCTAssertEqual(afterDuplicate.focused.projectLabel, "Sandbox")
+        XCTAssertEqual(afterDuplicate.focused.phase, .toolUse)
 
         let afterQuietInterval = await monitor.currentSnapshot(now: startedAt.addingTimeInterval(24 * 60 * 60))
-        XCTAssertEqual(afterQuietInterval.sessionID, "long")
-        XCTAssertEqual(afterQuietInterval.phase, .toolUse)
+        XCTAssertEqual(afterQuietInterval.focused.sessionID, "long")
+        XCTAssertEqual(afterQuietInterval.focused.phase, .toolUse)
+        XCTAssertEqual(afterQuietInterval.activeSessions.map(\.sessionID), ["long"])
+    }
+
+    func testActiveSessionProjectionUsesMostRecentTurnAndToolUpdatesDoNotReorder() async {
+        let monitor = CodexEventMonitor()
+        let origin = Date(timeIntervalSince1970: 1_700_000_000)
+        _ = await monitor.consume(makeEnvelope(.userPromptSubmit, session: "older", turn: "old-turn", at: origin), now: origin)
+        _ = await monitor.consume(makeEnvelope(.userPromptSubmit, session: "newer", turn: "new-turn", at: origin.addingTimeInterval(1)), now: origin.addingTimeInterval(1))
+        let snapshot = await monitor.currentSnapshot(now: origin.addingTimeInterval(2))
+        XCTAssertEqual(snapshot.activeSessions.map(\.sessionID), ["newer", "older"])
+        let tool = ToolActivity(category: .shell, summary: "Running command", symbol: "terminal")
+        let afterTool = await monitor.consume(
+            makeEnvelope(.preToolUse, session: "older", turn: "old-turn", at: origin.addingTimeInterval(3),
+                         toolID: "old-tool", tool: tool), now: origin.addingTimeInterval(3)
+        )
+        XCTAssertEqual(afterTool.activeSessions.map(\.sessionID), ["newer", "older"])
+    }
+
+    func testHookSummarizesKnownCommandsWithoutForwardingCommandText() throws {
+        let input = Data(#"{"session_id":"s","turn_id":"t","cwd":"/tmp/project","hook_event_name":"PreToolUse","tool_name":"Bash","tool_use_id":"tool","tool_input":{"command":"swift test --filter SecretSuite"}}"#.utf8)
+        let envelope = try CodexHookAdapter().envelope(from: input, expectedEvent: .preToolUse)
+        XCTAssertEqual(envelope.tool?.category, .test)
+        XCTAssertEqual(envelope.tool?.summary, "Running Swift tests")
+        let frame = try WireCodec.encode(envelope)
+        let wire = String(decoding: frame.dropFirst(4), as: UTF8.self)
+        XCTAssertFalse(wire.contains("SecretSuite"))
+        XCTAssertFalse(wire.contains("swift test"))
+
+        let compound = Data(#"{"session_id":"s","turn_id":"t","hook_event_name":"PreToolUse","tool_name":"Bash","tool_use_id":"tool","tool_input":{"command":"swift test && echo TOKEN"}}"#.utf8)
+        let fallback = try CodexHookAdapter().envelope(from: compound, expectedEvent: .preToolUse)
+        XCTAssertEqual(fallback.tool?.summary, "Running command")
     }
 
     func testDuplicateStopAfterShortTTLDoesNotCreateSecondCompletion() async {
@@ -72,9 +103,9 @@ final class WireAdapterTests: XCTestCase {
             makeEnvelope(.stop, session: "s", turn: "turn-z", at: origin.addingTimeInterval(4)),
             now: origin.addingTimeInterval(4), monotonicNow: 3_000_001_001
         )
-        XCTAssertEqual(first.phase, .completed)
-        XCTAssertEqual(duplicate.phase, .completed)
-        XCTAssertEqual(first.turnID, duplicate.turnID)
+        XCTAssertEqual(first.focused.phase, .completed)
+        XCTAssertEqual(duplicate.focused.phase, .completed)
+        XCTAssertEqual(first.focused.turnID, duplicate.focused.turnID)
     }
 
     func testEdgeCaseJSONLFixturesDriveExpectedReducerTransitions() throws {

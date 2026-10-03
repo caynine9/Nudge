@@ -86,7 +86,7 @@ final class NudgeAppDelegate: NSObject, NSApplicationDelegate {
         panelController = nil
     }
 
-    private func snapshotAfterDrainingSocketEvents() async -> ActivitySnapshot? {
+    private func snapshotAfterDrainingSocketEvents() async -> ActivityMonitorSnapshot? {
         let server = socketServer
         let ingress = eventIngress
         return await Task.detached(priority: .userInitiated) {

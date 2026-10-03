@@ -1,11 +1,11 @@
 import Foundation
 
 final class CodexEventIngress: @unchecked Sendable {
-    typealias SnapshotHandler = @Sendable (ActivitySnapshot) async -> Void
+    typealias SnapshotHandler = @Sendable (ActivityMonitorSnapshot) async -> Void
 
     private enum Message: Sendable {
         case event(WireEnvelope)
-        case snapshot(CheckedContinuation<ActivitySnapshot, Never>)
+        case snapshot(CheckedContinuation<ActivityMonitorSnapshot, Never>)
     }
 
     private let continuation: AsyncStream<Message>.Continuation
@@ -31,7 +31,7 @@ final class CodexEventIngress: @unchecked Sendable {
         continuation.yield(.event(envelope))
     }
 
-    func snapshotAfterPendingEvents() async -> ActivitySnapshot {
+    func snapshotAfterPendingEvents() async -> ActivityMonitorSnapshot {
         await withCheckedContinuation { reply in
             continuation.yield(.snapshot(reply))
         }

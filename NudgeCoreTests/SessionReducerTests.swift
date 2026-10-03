@@ -28,10 +28,12 @@ final class SessionReducerTests: XCTestCase {
             kind: .toolStarted(id: "a", activity: .init(category: .shell, summary: "Running command", symbol: "terminal")))).session!
         state = reducer.reduce(state, event: event("PreToolUse", session: "s", turn: "1", at: 1_003,
             kind: .toolStarted(id: "b", activity: .init(category: .edit, summary: "Editing files", symbol: "pencil")))).session!
+        XCTAssertEqual(state.snapshot.currentTool?.summary, "Editing files")
         state = reducer.reduce(state, event: event("PostToolUse", session: "s", turn: "1", at: 1_004,
             kind: .toolFinished(id: "a"))).session!
         XCTAssertEqual(state.phase, .toolUse)
         XCTAssertEqual(state.activeTools.count, 1)
+        XCTAssertEqual(state.snapshot.currentTool?.summary, "Editing files")
         state = reducer.reduce(state, event: event("PostToolUse", session: "s", turn: "1", at: 1_005,
             kind: .toolFinished(id: "b"))).session!
         XCTAssertEqual(state.phase, .thinking)

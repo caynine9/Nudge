@@ -80,7 +80,7 @@ struct PlaygroundMenuView: View {
             if target.confidence == "user-selected" {
                 Button("Use default candidate") { appState.resetConfigurationFolder() }
             }
-            Button("Install hooks for \(appState.integrationHost.title)") { appState.installCodexHooks() }
+            Button("Install or refresh hooks for \(appState.integrationHost.title)") { appState.installCodexHooks() }
             Button("Remove Nudge hooks from selected config") { appState.removeCodexHooks() }
         }
 

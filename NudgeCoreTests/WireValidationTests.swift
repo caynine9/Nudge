@@ -34,6 +34,25 @@ final class WireValidationTests: XCTestCase {
         XCTAssertThrowsError(try WireCodec.decode(unknownTool))
     }
 
+    func testVersionTwoAllowsOnlyBoundedSummaryAllowlistAndVersionOneRemainsCompatible() throws {
+        let legacy = WireEnvelope(schemaVersion: WireEnvelope.legacyVersion, source: "codex", event: .preToolUse,
+            sessionID: "session", turnID: "turn", observedAtMilliseconds: 1, projectLabel: nil,
+            toolCallID: "tool", tool: ToolActivity(category: .shell, summary: "Running command", symbol: "terminal"))
+        let legacyFrame = try WireCodec.encode(legacy)
+        XCTAssertEqual(try WireCodec.decode(Data(legacyFrame.dropFirst(4))), legacy)
+
+        let current = WireEnvelope(schemaVersion: WireEnvelope.currentVersion, source: "codex", event: .preToolUse,
+            sessionID: "session", turnID: "turn", observedAtMilliseconds: 1, projectLabel: nil,
+            toolCallID: "tool", tool: ToolActivity(category: .test, summary: "Running Xcode tests", symbol: "checkmark.circle"))
+        let currentFrame = try WireCodec.encode(current)
+        XCTAssertEqual(try WireCodec.decode(Data(currentFrame.dropFirst(4))), current)
+
+        let unapproved = WireEnvelope(schemaVersion: WireEnvelope.currentVersion, source: "codex", event: .preToolUse,
+            sessionID: "session", turnID: "turn", observedAtMilliseconds: 1, projectLabel: nil,
+            toolCallID: "tool", tool: ToolActivity(category: .shell, summary: "swift test --secret token", symbol: "terminal"))
+        XCTAssertThrowsError(try WireCodec.encode(unapproved))
+    }
+
     private func envelope() -> WireEnvelope {
         WireEnvelope(schemaVersion: 1, source: "codex", event: .userPromptSubmit, sessionID: "session",
                      turnID: "turn", observedAtMilliseconds: 1, projectLabel: "Fixture", toolCallID: nil, tool: nil)

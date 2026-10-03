@@ -202,7 +202,7 @@ This is an adaptive native panel, not a responsive web grid. Geometry derives fr
 | --- | --- | --- |
 | Minimized | cutout width + 84 pt; cutout height + 2 pt | 200 × 38 pt |
 | Monitor peek | at least 380 pt wide; cutout height + 132 pt | 380 × 132 pt |
-| Expanded monitor | at least 380 pt wide; cutout height + 160 pt | 380 × 160 pt |
+| Expanded monitor | at least 380 pt wide; cutout height + 160 pt for one session, + 170 pt for multiple sessions | 380 × 160 pt; 380 × 170 pt for multiple sessions |
 | Approval | at least 380 pt wide; cutout height + 224 pt | 380 × 224 pt |
 | Question | at least 340 pt wide; cutout height + 192 pt | 340 × 192 pt |
 | Confirmation | at least 260 pt wide; cutout height + 46 pt | 260 × 46 pt |
@@ -212,6 +212,8 @@ For a 180 × 32 pt cutout, minimized remains 264 × 34 pt. Width is clamped to t
 In minimized presentation, Nudgie occupies the left wing and the current phase symbol occupies the right wing for every phase. The standard-display row follows the same order, with the task title between them. This user-confirmed placement preserves the camera exclusion band and existing dimensions.
 
 Expanded notched content starts after a blank band equal to the camera height, then the extracted content-top spacing. Horizontal content insets differ between notched and fallback displays. Monitor content uses a 12 pt vertical stack and a 12 pt mascot-to-text gap. Permission actions share width and an 8 pt gap; question choices occupy full width in a stack with a 5 pt gap. No outer nested task card or separate detached expanded panel is implemented. Expanded notched modes may cover menu items; minimized preserves the chosen compact wing footprint.
+
+Expanded live monitor shows each detected active Codex session in its own direct row. Rows show a short stable session ID, project folder label, semantic phase, and bounded current-tool summary. The hook contract provides no conversation title, so Nudge does not invent one. Attention rows sort first; other rows sort by most recently started or resumed turn. Tool updates and selection do not reorder them. At two or more active sessions, the monitor grows by 10 pt, from 160 to 170 pt below the camera band (380 × 170 pt on a standard display, cutout height + 170 pt on a notched display). Further rows scroll inside this fixed viewport with native scroll indicators. Collapsed and peek modes keep one focused session. Live monitor has no Live badge; synthetic content retains its Demo badge.
 
 **The One Anchor Rule.** Keep every notched mode attached to the same screen-top anchor, with a blank camera band before expanded content.
 
@@ -229,7 +231,7 @@ Notched shells form a continuous top-attached housing with rounded shoulders, no
 
 ### Monitor row and host action
 
-One direct row shows Nudgie, task title, prompt, phase or tool activity, Codex badge, and selected host badge. A Demo badge identifies fixture content. Clicking the row activates the selected host; the expanded secondary action does the same. While launching, both are disabled. Launch failure replaces the prompt/tool area with an orange message limited to two lines. Exact session and terminal-tab routing are unverified and are not claimed.
+Live monitor rows show project label, short session identity, phase, and bounded tool summary. Selecting an active row changes the focused context used by collapsed and peek modes; it does not claim exact thread navigation. No Live badge is shown. Demo preview content remains explicitly marked Demo. Exact session and terminal-tab routing are unverified and are not claimed.
 
 ### Buttons
 
@@ -237,7 +239,7 @@ One direct row shows Nudgie, task title, prompt, phase or tool activity, Codex b
 
 ### Badges
 
-Small gray-on-dark badges provide Demo, Codex, and selected host context. They are labels rather than chips or filters; there is no selection state.
+Small gray-on-dark badges provide Demo, Codex, and selected host context where shown. They are labels rather than chips or filters; the live activity monitor has no Live badge.
 
 ### Permission preview
 
@@ -274,7 +276,7 @@ SwiftUI uses the same timing curve for the shell, with 380 ms on opening and 280
 
 - **Don't** switch the shell to a light surface in Light appearance.
 - **Don't** move the expanded notched panel below the menu bar or add a narrow neck above its content.
-- **Don't** expand the focused surface into a provider fleet, quota dashboard, or session browser.
+- **Don't** expand the focused surface into a provider fleet, quota dashboard, or conversation history browser. The user explicitly permits an active-session list in the expanded monitor.
 - **Don't** represent demo permission actions or question choices as decisions sent to Codex.
 - **Don't** treat the short interaction receipt as task completion or promise exact session/tab routing.
 - **Don't** copy external mascot artwork or introduce a permanent idle animation.

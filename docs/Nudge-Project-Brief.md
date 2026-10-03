@@ -114,10 +114,11 @@ Nudge can deliberately avoid most of this.
 Nudge can be opinionated:
 
 - Codex-first.
-- One **focused session/project** gets visual priority.
+- Collapsed and hover-peek give one **focused session/project** visual priority.
+- Expanded may list every detected active Codex session as direct rows. Keep its viewport compact and fixed at 10 pt above its one-session expanded height, then scroll; this is context glanceability, not a session history/fleet dashboard.
 - Native Codex notifications remain useful; Nudge does not have to duplicate every notification feature.
 - Usage/quota tracking is optional and can be omitted from MVP.
-- No need for a session “fleet management” UI.
+- No need for session “fleet management” controls or history.
 - No requirement to support Claude, Gemini, Cursor, OpenCode, etc. initially.
 - A stronger personality and more polished single-session animation can be prioritized instead.
 

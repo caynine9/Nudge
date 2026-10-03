@@ -59,6 +59,50 @@ struct NotchLayoutChecks {
                                  "\(label): shell must remain top-centered")
                 }
             }
+
+            for count in [2, 8] {
+                let sessions = (0..<count).map { index in
+                    ActivitySnapshot(
+                        sessionID: "fixture-session-\(index + 1)", turnID: "turn-\(index + 1)",
+                        projectLabel: index.isMultiple(of: 2) ? "Nudge" : "Invoice",
+                        phase: index == 0 ? .toolUse : .thinking,
+                        currentTool: index == 0
+                            ? ToolActivity(category: .test, summary: "Running Xcode tests", symbol: "checkmark.circle")
+                            : nil,
+                        activityLabel: index == 0 ? "Running Xcode tests" : "Thinking…",
+                        detail: index == 0 ? "Running Xcode tests" : "Codex is working.",
+                        observedAt: Date(), turnStartedAt: Date().addingTimeInterval(Double(-index))
+                    )
+                }
+                var state = PresentationState()
+                state.snapshot = sessions[0]
+                state.pinnedOpen = true
+                let app = AppState(presentation: state, activeSessions: sessions)
+                let canvas = geometry.canvasSize
+                let expected = geometry.size(for: .expanded, activeSessionCount: count)
+                let root = NotchRootView(
+                    displayKind: geometry.kind, notchWidth: geometry.notchWidth,
+                    notchHeight: geometry.notchHeight, compactWidth: geometry.compactWidth,
+                    availableWidth: canvas.width, availableHeight: canvas.height
+                ).environmentObject(app).frame(width: canvas.width, height: canvas.height)
+                let renderer = ImageRenderer(content: root)
+                renderer.scale = 1
+                guard let image = renderer.cgImage else { fatalError("Multi-session render failed") }
+                let actual = opaqueBounds(image)
+                let reference = ImageRenderer(content:
+                    NotchShell(attachedToScreenEdge: notched, compactWidth: geometry.compactWidth,
+                               neckHeight: geometry.notchHeight + 2, fullWidth: true)
+                        .fill(Color.black)
+                        .frame(width: expected.width, height: expected.height)
+                        .frame(width: canvas.width, height: canvas.height, alignment: .top)
+                )
+                reference.scale = 1
+                guard let referenceImage = reference.cgImage else { fatalError("Multi-session shell render failed") }
+                let expectedBounds = opaqueBounds(referenceImage)
+                precondition(abs(actual.width - expectedBounds.width) <= 2
+                             && abs(actual.height - expectedBounds.height) <= 2,
+                             "\(geometry.kind), \(count) sessions: list content must stay inside \(expected)")
+            }
         }
         print("Notch layout checks passed: every state fits its own bounds inside the full hosting canvas")
     }

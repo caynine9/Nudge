@@ -10,7 +10,8 @@ enum CodexHookEvent: String, CaseIterable, Codable, Sendable {
 }
 
 struct WireEnvelope: Codable, Equatable, Sendable {
-    static let currentVersion = 1
+    static let currentVersion = 2
+    static let legacyVersion = 1
     static let maximumFrameSize = 64 * 1024
     static let maximumIdentifierBytes = 256
     static let maximumSummaryCharacters = 120
@@ -69,7 +70,9 @@ struct WireEnvelope: Codable, Equatable, Sendable {
     }
 
     func validate() throws {
-        guard schemaVersion == Self.currentVersion else { throw WireError.unsupportedVersion }
+        guard schemaVersion == Self.currentVersion || schemaVersion == Self.legacyVersion else {
+            throw WireError.unsupportedVersion
+        }
         guard source == "codex" else { throw WireError.invalidSource }
         guard observedAtMilliseconds >= 0 else { throw WireError.malformedPayload }
         try Self.validateIdentifier(sessionID)
@@ -82,7 +85,7 @@ struct WireEnvelope: Codable, Equatable, Sendable {
             }
         }
         if let tool {
-            guard Self.validatedToolActivity(tool) else { throw WireError.malformedPayload }
+            guard Self.validatedToolActivity(tool, version: schemaVersion) else { throw WireError.malformedPayload }
         }
         switch event {
         case .preToolUse, .postToolUse:
@@ -106,7 +109,41 @@ struct WireEnvelope: Codable, Equatable, Sendable {
         }
     }
 
-    private static func validatedToolActivity(_ tool: ToolActivity) -> Bool {
+    private static func validatedToolActivity(_ tool: ToolActivity, version: Int) -> Bool {
+        if version == Self.legacyVersion {
+            return legacyToolActivity(tool)
+        }
+        guard !tool.summary.isEmpty, tool.summary.count <= Self.maximumSummaryCharacters,
+              !tool.summary.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
+            return false
+        }
+        return switch (tool.category, tool.summary, tool.symbol) {
+        case (.shell, "Running command", "terminal"),
+             (.shell, "Running tests", "terminal"),
+             (.shell, "Building project", "terminal"),
+             (.shell, "Checking Git changes", "terminal"),
+             (.shell, "Reading project files", "terminal"),
+             (.shell, "Searching project files", "terminal"),
+             (.shell, "Updating project files", "terminal"),
+             (.test, "Running project tests", "checkmark.circle"),
+             (.test, "Running Swift tests", "checkmark.circle"),
+             (.test, "Running Xcode tests", "checkmark.circle"),
+             (.test, "Running JavaScript tests", "checkmark.circle"),
+             (.test, "Running Python tests", "checkmark.circle"),
+             (.edit, "Editing files", "pencil"),
+             (.edit, "Updating project files", "pencil"),
+             (.read, "Reading project files", "doc.text"),
+             (.read, "Inspecting project files", "doc.text"),
+             (.other, "Searching project files", "magnifyingglass"),
+             (.other, "Searching project files", "sparkles"),
+             (.other, "Using Codex tool", "sparkles"):
+            true
+        default:
+            false
+        }
+    }
+
+    private static func legacyToolActivity(_ tool: ToolActivity) -> Bool {
         switch (tool.category, tool.summary, tool.symbol) {
         case (.shell, "Running command", "terminal"),
              (.edit, "Editing files", "pencil"),

@@ -59,6 +59,10 @@ struct NotchGeometryChecks {
         precondition(fallback.frame(for: .attention).width <= narrowScreen.width - 24)
         let approval = geometry.size(for: .attention, phase: .waitingPermission)
         let question = geometry.size(for: .attention, phase: .waitingInput)
+        let expanded = geometry.size(for: .expanded)
+        let expandedWithSessions = geometry.size(for: .expanded, activeSessionCount: 8)
+        precondition(expandedWithSessions.height - expanded.height == 10,
+                     "An overflowing session list may grow expanded by only ten points")
         precondition(question.width < approval.width && question.height < approval.height)
         precondition(geometry.size(for: .collapsed, phase: .waitingInput) == geometry.size(for: .collapsed))
         // A stable hosting canvas encloses every endpoint; its transparent remainder

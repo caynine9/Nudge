@@ -48,6 +48,10 @@ enum SessionPhase: String, CaseIterable, Codable, Identifiable, Sendable {
         self == .waitingPermission || self == .waitingInput
     }
 
+    var isActive: Bool {
+        self == .thinking || self == .toolUse || isAttention
+    }
+
     var isTerminal: Bool {
         self == .completed || self == .failed || self == .interrupted || self == .ended
     }
@@ -130,9 +134,11 @@ struct ActivitySnapshot: Equatable, Sendable {
     let activityLabel: String
     let detail: String
     let observedAt: Date
+    let turnStartedAt: Date?
 
     init(sessionID: String, turnID: String, projectLabel: String, phase: SessionPhase,
-         currentTool: ToolActivity?, activityLabel: String, detail: String, observedAt: Date = Date()) {
+         currentTool: ToolActivity?, activityLabel: String, detail: String, observedAt: Date = Date(),
+         turnStartedAt: Date? = nil) {
         self.sessionID = sessionID
         self.turnID = turnID
         self.projectLabel = projectLabel
@@ -141,6 +147,7 @@ struct ActivitySnapshot: Equatable, Sendable {
         self.activityLabel = activityLabel
         self.detail = detail
         self.observedAt = observedAt
+        self.turnStartedAt = turnStartedAt
     }
 
     static let empty = Self(
@@ -170,6 +177,13 @@ struct ActivitySnapshot: Equatable, Sendable {
             observedAt: Date()
         )
     }
+}
+
+struct ActivityMonitorSnapshot: Equatable, Sendable {
+    let focused: ActivitySnapshot
+    let activeSessions: [ActivitySnapshot]
+
+    static let empty = Self(focused: .empty, activeSessions: [])
 }
 
 enum NotchPresentation: Equatable, CaseIterable {

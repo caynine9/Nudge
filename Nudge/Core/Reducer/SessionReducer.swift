@@ -7,9 +7,12 @@ struct CodexSessionState: Equatable, Sendable {
     var metadataUpdatedAt: Date? = nil
     var phase: SessionPhase
     var activeTools: [String: ToolActivity]
+    var activeToolOrder: [String] = []
     var finishedToolIDs: [String] = []
     var pendingInteraction: PendingInteraction? = nil
+    var pendingInteractionStartedAt: Date? = nil
     var lastActivityAt: Date
+    var turnStartedAt: Date? = nil
     var completedTurnIDs: [String]
     var retiredTurnIDs: [String] = []
 
@@ -18,11 +21,11 @@ struct CodexSessionState: Equatable, Sendable {
     }
 
     var snapshot: ActivitySnapshot {
-        let currentTool = activeTools.sorted(by: { $0.key < $1.key }).first?.value
+        let currentTool = activeToolOrder.last.flatMap { activeTools[$0] }
         let displayPhase = presentationPhase
         let detail: String
         switch displayPhase {
-        case .toolUse: detail = "Using a local Codex tool."
+        case .toolUse: detail = currentTool?.summary ?? "Working"
         case .completed: detail = "Turn finished."
         case .waitingPermission: detail = "Codex needs permission."
         case .waitingInput: detail = "Codex has a question."
@@ -36,7 +39,8 @@ struct CodexSessionState: Equatable, Sendable {
             currentTool: displayPhase.isAttention ? nil : currentTool,
             activityLabel: displayPhase.isAttention ? displayPhase.title : (currentTool?.summary ?? displayPhase.title),
             detail: detail,
-            observedAt: lastActivityAt
+            observedAt: lastActivityAt,
+            turnStartedAt: turnStartedAt
         )
     }
 
@@ -105,14 +109,14 @@ struct SessionReducer {
                 if session.phase != .discovered && session.phase != .idle { return result }
             } else {
                 if let oldTurn = session.turnID { retireTurn(oldTurn, in: &session) }
-                startTurn(incoming, in: &session)
+                startTurn(incoming, at: event.observedAt, in: &session)
             }
             session.phase = .thinking
             result.didMakeProgress = true
 
         case let .toolStarted(id, activity):
             guard !id.isEmpty, let incoming = validTurnID(event.turnID),
-                  prepareProgressTurn(incoming, session: &session) else { return Result(session: previous) }
+                  prepareProgressTurn(incoming, at: event.observedAt, session: &session) else { return Result(session: previous) }
             guard !session.finishedToolIDs.contains(id) else { return Result(session: previous) }
             if let existing = session.activeTools[id] {
                 // A repeated PreToolUse may enrich the normalized tool label, but
@@ -122,27 +126,33 @@ struct SessionReducer {
                 return result
             }
             session.activeTools[id] = activity
+            session.activeToolOrder.append(id)
             session.phase = .toolUse
             result.didMakeProgress = true
 
         case let .toolFinished(id):
             guard !id.isEmpty, let incoming = validTurnID(event.turnID),
-                  prepareProgressTurn(incoming, session: &session) else { return Result(session: previous) }
+                  prepareProgressTurn(incoming, at: event.observedAt, session: &session) else { return Result(session: previous) }
             guard !session.finishedToolIDs.contains(id) else { return Result(session: previous) }
             session.activeTools.removeValue(forKey: id)
+            session.activeToolOrder.removeAll { $0 == id }
             appendUnique(id, to: &session.finishedToolIDs)
             if session.finishedToolIDs.count > Self.retainedToolLimit {
                 session.finishedToolIDs.removeFirst(session.finishedToolIDs.count - Self.retainedToolLimit)
             }
-            if session.pendingInteraction?.toolCallID == id { session.pendingInteraction = nil }
+            if session.pendingInteraction?.toolCallID == id {
+                session.pendingInteraction = nil
+                session.pendingInteractionStartedAt = nil
+            }
             updateWorkingPhase(&session)
             result.didMakeProgress = true
 
         case let .pendingInteraction(interaction):
             guard let incoming = validTurnID(event.turnID),
-                  prepareProgressTurn(incoming, session: &session) else { return Result(session: previous) }
+                  prepareProgressTurn(incoming, at: event.observedAt, session: &session) else { return Result(session: previous) }
             if session.pendingInteraction == interaction { return result }
             session.pendingInteraction = interaction
+            session.pendingInteractionStartedAt = event.observedAt
             session.phase = .thinking
             result.didMakeProgress = true
 
@@ -150,6 +160,7 @@ struct SessionReducer {
             guard let pending = session.pendingInteraction, pending.id == id,
                   event.turnID == nil || event.turnID == session.turnID else { return Result(session: previous) }
             session.pendingInteraction = nil
+            session.pendingInteractionStartedAt = nil
             updateWorkingPhase(&session)
             result.didMakeProgress = true
 
@@ -160,17 +171,21 @@ struct SessionReducer {
             }
             if let turnID = session.turnID { retireTurn(turnID, in: &session) }
             session.pendingInteraction = nil
+            session.pendingInteractionStartedAt = nil
             session.activeTools.removeAll()
+            session.activeToolOrder.removeAll()
             session.phase = .ended
             result.didMakeProgress = true
 
         case .turnFinished:
             guard let incoming = validTurnID(event.turnID),
-                  prepareTerminalTurn(incoming, session: &session),
+                  prepareTerminalTurn(incoming, at: event.observedAt, session: &session),
                   session.phase != .completed else { return Result(session: previous) }
             session.activeTools.removeAll()
+            session.activeToolOrder.removeAll()
             session.finishedToolIDs.removeAll()
             session.pendingInteraction = nil
+            session.pendingInteractionStartedAt = nil
             session.phase = .completed
             appendUnique(incoming, to: &session.completedTurnIDs)
             retireTurn(incoming, in: &session)
@@ -179,13 +194,15 @@ struct SessionReducer {
 
         case .interrupted:
             guard let incoming = validTurnID(event.turnID),
-                  prepareTerminalTurn(incoming, session: &session),
+                  prepareTerminalTurn(incoming, at: event.observedAt, session: &session),
                   session.phase != .interrupted && session.phase != .completed && session.phase != .failed else {
                 return Result(session: previous)
             }
             session.activeTools.removeAll()
+            session.activeToolOrder.removeAll()
             session.finishedToolIDs.removeAll()
             session.pendingInteraction = nil
+            session.pendingInteractionStartedAt = nil
             session.phase = .interrupted
             retireTurn(incoming, in: &session)
             result.didInterruptTurn = true
@@ -210,10 +227,10 @@ struct SessionReducer {
         return nil
     }
 
-    private func prepareProgressTurn(_ incoming: String, session: inout CodexSessionState) -> Bool {
+    private func prepareProgressTurn(_ incoming: String, at date: Date, session: inout CodexSessionState) -> Bool {
         guard !session.retiredTurnIDs.contains(incoming) else { return false }
         guard let current = session.turnID else {
-            startTurn(incoming, in: &session)
+            startTurn(incoming, at: date, in: &session)
             return true
         }
         guard current != incoming else { return !session.phase.isTerminal }
@@ -221,28 +238,31 @@ struct SessionReducer {
         // is terminal. While it is active, ignore the ambiguous out-of-order event.
         guard session.phase.isTerminal else { return false }
         retireCurrentTurn(&session)
-        startTurn(incoming, in: &session)
+        startTurn(incoming, at: date, in: &session)
         return true
     }
 
-    private func prepareTerminalTurn(_ incoming: String, session: inout CodexSessionState) -> Bool {
+    private func prepareTerminalTurn(_ incoming: String, at date: Date, session: inout CodexSessionState) -> Bool {
         guard !session.retiredTurnIDs.contains(incoming) else { return false }
         guard let current = session.turnID else {
-            startTurn(incoming, in: &session)
+            startTurn(incoming, at: date, in: &session)
             return true
         }
         guard current != incoming else { return !session.phase.isTerminal }
         guard session.phase.isTerminal else { return false }
         retireCurrentTurn(&session)
-        startTurn(incoming, in: &session)
+        startTurn(incoming, at: date, in: &session)
         return true
     }
 
-    private func startTurn(_ id: String, in session: inout CodexSessionState) {
+    private func startTurn(_ id: String, at date: Date, in session: inout CodexSessionState) {
         session.turnID = id
+        session.turnStartedAt = date
         session.activeTools.removeAll()
+        session.activeToolOrder.removeAll()
         session.finishedToolIDs.removeAll()
         session.pendingInteraction = nil
+        session.pendingInteractionStartedAt = nil
         session.phase = .thinking
     }
 

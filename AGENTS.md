@@ -17,7 +17,7 @@ Alur utama:
 5. Pengguna membuka Codex dari Nudge untuk melanjutkan konteks yang relevan.
 6. Nudge kembali tenang setelah perhatian tidak lagi diperlukan.
 
-Produk harus terasa seperti companion Mac yang kecil, fokus, responsif, dan polished. Satu konteks aktif mendapat prioritas visual; jangan mengubahnya menjadi dashboard operasi multi-agent.
+Produk harus terasa seperti companion Mac yang kecil, fokus, responsif, dan polished. Collapsed dan hover peek memprioritaskan satu konteks; expanded boleh menampilkan semua sesi Codex aktif sebagai daftar ringkas yang dapat di-scroll. Jangan mengubahnya menjadi dashboard operasi multi-agent.
 
 ## Status Repository Saat Ini
 
@@ -38,7 +38,8 @@ Produk awal harus:
 - mendukung **Codex macOS app / Desktop secara wajib**, termasuk local new dan resumed threads yang dimulai langsung dari app;
 - juga mendukung Codex CLI; integrasi CLI saja **tidak memenuhi acceptance criteria MVP**;
 - tidak mewajibkan pengguna membuka terminal atau menjalankan app-server milik Nudge untuk memantau aktivitas Desktop;
-- menampilkan satu focused context meskipun beberapa session tersedia secara internal;
+- memprioritaskan satu focused context pada collapsed dan hover peek;
+- menampilkan semua sesi Codex aktif yang terdeteksi sebagai daftar ringkas di expanded, dengan cap tinggi expanded saat ini + 10 pt dan scroll;
 - menjadi aplikasi menu-bar/accessory dengan notch overlay dan fallback untuk layar tanpa notch;
 - memakai lifecycle hooks sebagai jalur aktivitas utama setelah kompatibilitas kedua host diverifikasi;
 - tetap membiarkan Codex bekerja normal ketika Nudge tertutup, crash, atau bridge/socket tidak tersedia;

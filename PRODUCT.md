@@ -14,7 +14,7 @@ Developers working locally in Codex Desktop or CLI who switch to another Mac app
 
 ## Product Purpose
 
-A small menu-bar companion that presents one focused Codex context through a notch overlay, with a fallback for non-notch displays. Make work, attention, completion, failure, and interruption easy to see, then return the user to Codex.
+A small menu-bar companion that presents one focused Codex context in collapsed and hover-peek modes, with a fallback for non-notch displays. Expanded mode lists every active session Nudge has detected. Make work, attention, completion, failure, and interruption easy to see, then return the user to Codex.
 
 ## Operating Context
 
@@ -22,11 +22,11 @@ Swift 6, SwiftUI composition, AppKit NSPanel windowing; camera exclusion, menu b
 
 ## Capabilities and Constraints
 
-M1 now has a local lifecycle-hook event spine, focused live snapshot, helper, Unix socket, safe `hooks.json` installer, and explicit Demo mode. Source and hermetic tests are available; live Codex Desktop new/resumed threads and CLI coverage remain pending developer verification. Nudge shows trust/host status as unverified until evidence arrives, and Codex works independently if Nudge is unavailable. No account, backend, telemetry, transcript persistence, persistent allow, or permission bypass. Demo attention controls remain simulated. Exact thread/tab routing remains unverified.
+M1 has a local lifecycle-hook event spine, ordered active-session snapshots, helper, Unix socket, safe `hooks.json` installer, and explicit Demo mode. Expanded monitor lists detected active sessions in turn-start order inside a 170 pt viewport (notch height + 170 pt on notched screens), then scrolls. Live activity summaries use bounded command classifications; hook data does not provide conversation titles, so rows identify sessions with short IDs. Live Codex Desktop new/resumed threads and CLI coverage remain pending developer verification. Nudge shows trust/host status as unverified until evidence arrives, and Codex works independently if Nudge is unavailable. No account, backend, telemetry, transcript persistence, persistent allow, or permission bypass. Demo attention controls remain simulated. Exact thread/tab routing remains unverified.
 
 ## Brand Commitments
 
-Name Nudge, original mascot Nudgie. User explicitly selected the five attached Vibe Island-style state screenshots as visual direction and requires black in both light and dark system appearances. Retain a single focused context, with no quota dashboard or multi-provider session list. Do not copy external mascot artwork or GPL implementation.
+Name Nudge, original mascot Nudgie. User explicitly selected the five attached Vibe Island-style state screenshots as visual direction and requires black in both light and dark system appearances. Retain one focused context in compact modes; expanded may show active Codex sessions in direct rows, with no quota dashboard or multi-provider fleet. Do not copy external mascot artwork or GPL implementation.
 
 ## Evidence on Hand
 

@@ -34,3 +34,13 @@ The Desktop app bundle observed during plan research was `/Applications/ChatGPT.
 `NudgeIntegrationTests/Fixtures/Codex/desktop/` and `cli/` contain **synthetic** JSON that mirrors documented command-hook fields. Their only differences are labels/IDs that identify the fixture set. Each includes deliberate prompt/command/output/assistant sentinels so tests can prove those values do not reach the wire. None was captured from a live host, and passing fixture tests is not Desktop or CLI evidence.
 
 The six configured event names are `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`, and `Interrupt`. Host event coverage, trust UI, startup/reload behavior, and successful monitoring of new/resumed Desktop threads remain pending in [Nudge-M1-Verification.md](Nudge-M1-Verification.md).
+
+## Activity context implementation (3 October 2026)
+
+The local Nudge wire envelope is now version 2. Updated receivers continue to validate and accept v1 envelopes with their legacy exact tool-summary combinations; new helpers emit v2. V2 permits only bounded summaries from Nudge's finite category/symbol allowlist. Unknown fields, categories, symbol combinations, control characters, and oversize values are rejected. V1 remains the generic-summary fallback; v2 does not carry command text, tool input/output, prompt, transcript, or thread title.
+
+Upgrade the installed helper through Nudge's existing Install Codex Hooks action, which replaces the owner-checked helper before its idempotent hook-config step. Existing hook definitions stay unchanged. A previous Nudge app will reject v2 frames from a new helper and the bridge exits without blocking Codex; recovery is to run the matching version's install action so the bundled helper and app agree. A new app accepts an older v1 helper during upgrade but receives generic summaries until the helper is refreshed.
+
+The adapter classifies a small set of simple shell invocations (Swift/Xcode/JavaScript/Python tests, build, Git status/diff, search, read, and basic file mutation) into fixed summaries. Compound or unknown commands use “Running command”. It inspects but never executes hook input; full command arguments do not enter the wire. The hook has no documented conversation-title field. Rows therefore use short session-ID labels and sanitized `cwd` basename as separate project context.
+
+The monitor now publishes a focused snapshot together with ordered active-session rows. Expanded order is attention first, then most recently started/resumed turn; tool updates do not reorder rows. The existing M1 host matrix remains pending live Desktop and CLI developer verification. No application tests or fixtures prove real host coverage.

@@ -13,6 +13,7 @@ struct NotchRootView: View {
     @State private var lastOpenSize: CGSize?
     @State private var lastOpenMode: NotchPresentation = .peek
     @State private var lastFeedback: InteractionFeedback?
+    @State private var scrollAnchorSessionID: String?
     var hoverChanged: ((Bool) -> Void)? = nil
 
     private var mode: NotchPresentation { appState.presentation.mode }
@@ -30,7 +31,8 @@ struct NotchRootView: View {
     private var isNotched: Bool { displayKind == .notch }
     private var targetSize: CGSize {
         let preferred = NotchGeometry.preferredSize(kind: displayKind, compactWidth: compactWidth,
-                                                   notchHeight: notchHeight, mode: mode, phase: phase)
+                                                   notchHeight: notchHeight, mode: mode, phase: phase,
+                                                   activeSessionCount: appState.activeSessions.count)
         return CGSize(width: min(preferred.width, availableWidth), height: min(preferred.height, availableHeight))
     }
     private var reduceMotion: Bool { appState.reduceMotion || accessibilityReduceMotion }
@@ -41,7 +43,8 @@ struct NotchRootView: View {
         if mode != .collapsed { return targetSize }
         if let lastOpenSize { return lastOpenSize }
         let preferred = NotchGeometry.preferredSize(kind: displayKind, compactWidth: compactWidth,
-                                                   notchHeight: notchHeight, mode: .peek, phase: phase)
+                                                   notchHeight: notchHeight, mode: .peek, phase: phase,
+                                                   activeSessionCount: appState.activeSessions.count)
         return CGSize(width: min(preferred.width, availableWidth),
                       height: min(preferred.height, availableHeight))
     }
@@ -125,6 +128,8 @@ struct NotchRootView: View {
         .frame(width: targetSize.width, height: targetSize.height, alignment: .top)
         .animation(reduceMotion ? nil : NotchMotion.shell(collapsing: mode == .collapsed), value: mode)
         .animation(reduceMotion ? nil : NotchMotion.shell(collapsing: false), value: phase)
+        .animation(reduceMotion ? nil : NotchMotion.shell(collapsing: false),
+                   value: mode == .expanded && appState.activeSessions.count > 1)
         // Rebuild at the current target when motion is disabled or the machine sleeps;
         // an in-flight animation must not carry across either boundary.
         .id(reduceMotion || appState.presentation.isSleeping)
@@ -205,38 +210,124 @@ struct NotchRootView: View {
     }
 
     private var liveMonitor: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Codex")
                     .font(NotchType.readable(11, weight: .medium))
                     .foregroundStyle(NotchPalette.secondary)
                 Spacer()
-                NotchBadge(title: "Live")
+                Text(activeSessionsLabel)
+                    .font(NotchType.readable(11))
+                    .foregroundStyle(NotchPalette.secondary)
             }
-            VStack(alignment: .leading, spacing: 7) {
-                Text(focusedTitle)
-                    .font(NotchType.readable(14, weight: .medium))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                Label(displayedPhaseTitle, systemImage: phase.symbol)
-                    .font(NotchType.readable(12))
-                    .foregroundStyle(accent)
-                if let tool = appState.presentation.snapshot.currentTool {
-                    Label(tool.summary, systemImage: tool.symbol)
-                        .font(NotchType.readable(12))
-                        .foregroundStyle(accent)
-                        .lineLimit(1)
+            if liveSessionsForDisplay.isEmpty {
+                Text("Waiting for local Codex activity.")
+                    .font(NotchType.readable(11))
+                    .foregroundStyle(NotchPalette.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else if contentMode == .expanded || contentMode == .attention {
+                ScrollView(.vertical) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(liveSessionsForDisplay, id: \.sessionID) { session in
+                            VStack(spacing: 0) {
+                                liveSessionRow(session)
+                                if session.sessionID != liveSessionsForDisplay.last?.sessionID {
+                                    Rectangle().fill(Color.white.opacity(0.10)).frame(height: 1)
+                                        .padding(.leading, 8)
+                                }
+                            }
+                        }
+                    }
+                    .scrollTargetLayout()
                 }
-                if phase == .idle || phase == .discovered {
-                    Text("Waiting for local Codex activity.")
-                        .font(NotchType.readable(11))
-                        .foregroundStyle(NotchPalette.secondary)
-                        .lineLimit(2)
-                }
+                .scrollIndicators(.visible)
+                .scrollPosition(id: $scrollAnchorSessionID, anchor: .top)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityLabel("\(appState.activeSessions.count) active Codex sessions")
+            } else {
+                liveSessionRow(appState.presentation.snapshot)
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(focusedTitle), Codex \(displayedPhaseTitle)\(appState.presentation.snapshot.currentTool.map { ", \($0.summary)" } ?? "")")
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var liveSessionsForDisplay: [ActivitySnapshot] {
+        if !appState.activeSessions.isEmpty { return appState.activeSessions }
+        let focused = appState.presentation.snapshot
+        return focused.sessionID.isEmpty ? [] : [focused]
+    }
+
+    private var activeSessionsLabel: String {
+        let count = appState.activeSessions.count
+        return count == 1 ? "1 active session" : "\(count) active sessions"
+    }
+
+    private func liveSessionRow(_ session: ActivitySnapshot) -> some View {
+        Button { appState.selectLiveSession(session.sessionID) } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 8) {
+                    Text(sessionLabel(for: session))
+                        .font(NotchType.readable(12, weight: .medium))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Label(livePhaseTitle(session.phase), systemImage: session.phase.symbol)
+                        .font(NotchType.readable(11))
+                        .foregroundStyle(accent(for: session.phase))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                Text(session.projectLabel)
+                    .font(NotchType.readable(11))
+                    .foregroundStyle(NotchPalette.secondary)
+                    .lineLimit(1)
+                if let tool = session.currentTool {
+                    Label(tool.summary, systemImage: tool.symbol)
+                        .font(NotchType.readable(11))
+                        .foregroundStyle(accent(for: session.phase))
+                        .lineLimit(1)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(NotchButtonStyle(tone: .row))
+        .disabled(!session.phase.isActive)
+        .accessibilityLabel("\(session.projectLabel), \(sessionLabel(for: session)), \(livePhaseTitle(session.phase))\(session.currentTool.map { ", \($0.summary)" } ?? "")")
+        .accessibilityAddTraits(appState.selectedLiveSessionID == session.sessionID ? .isSelected : [])
+    }
+
+    private func sessionLabel(for session: ActivitySnapshot) -> String {
+        let identifiers = liveSessionsForDisplay.map(\.sessionID)
+        let scalars = Array(session.sessionID)
+        var length = min(8, scalars.count)
+        while length < scalars.count {
+            let candidate = String(scalars.prefix(length))
+            let collisions = identifiers.filter { String($0.prefix(length)) == candidate }.count
+            if collisions <= 1 { break }
+            length += 1
+        }
+        return "Session \(String(scalars.prefix(length)))"
+    }
+
+    private func livePhaseTitle(_ phase: SessionPhase) -> String {
+        switch phase {
+        case .toolUse: "Working"
+        case .completed: "Turn finished"
+        default: phase.title
+        }
+    }
+
+    private func accent(for phase: SessionPhase) -> Color {
+        switch phase {
+        case .waitingPermission, .waitingInput: NotchPalette.orange
+        case .completed: NotchPalette.green
+        case .failed: NotchPalette.red
+        case .interrupted: NotchPalette.secondary
+        default: NotchPalette.blue
+        }
     }
 
     private var demoMonitor: some View {

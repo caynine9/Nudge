@@ -93,6 +93,48 @@ final class HookInstallerTests: XCTestCase {
             .contains { ($0["hooks"] as? [[String: Any]])?.contains(where: { $0["command"] as? String == "other-hook" }) == true })
     }
 
+    func testDuplicateCanonicalOwnedGroupsCollapseToOneGroup() throws {
+        XCTAssertTrue(isInstalled(installer.install()))
+        var rootObject = try JSONSerialization.jsonObject(with: Data(contentsOf: target.hooksFile)) as! [String: Any]
+        var hooks = rootObject["hooks"] as! [String: Any]
+        var groups = hooks["SessionStart"] as! [[String: Any]]
+        groups.append(try XCTUnwrap(groups.first))
+        hooks["SessionStart"] = groups
+        rootObject["hooks"] = hooks
+        try writeJSON(rootObject)
+
+        XCTAssertTrue(isInstalled(installer.install()))
+        let updated = try JSONSerialization.jsonObject(with: Data(contentsOf: target.hooksFile)) as! [String: Any]
+        let updatedHooks = updated["hooks"] as! [String: Any]
+        let updatedGroups = updatedHooks["SessionStart"] as! [[String: Any]]
+        XCTAssertEqual(updatedGroups.count, 1)
+        let ownedHandlers = updatedGroups.flatMap { $0["hooks"] as? [[String: Any]] ?? [] }
+        XCTAssertEqual(ownedHandlers.count, 1)
+    }
+
+    func testPermissionActionHandlerIsExplicitOptInAndCanReturnToMirrorMode() throws {
+        let actionsInstaller = CodexHookInstaller(target: target, helperPath: helper,
+                                                  backupDirectory: backups, permissionActionsEnabled: true)
+        XCTAssertTrue(isInstalled(actionsInstaller.install()))
+        var rootObject = try JSONSerialization.jsonObject(with: Data(contentsOf: target.hooksFile)) as! [String: Any]
+        var hooks = rootObject["hooks"] as! [String: Any]
+        let permissionGroups = hooks["PermissionRequest"] as! [[String: Any]]
+        let actionHandler = try XCTUnwrap(permissionGroups.flatMap { $0["hooks"] as? [[String: Any]] ?? [] }.first)
+        XCTAssertTrue((actionHandler["command"] as? String)?.hasSuffix("PermissionRequest --permission-actions") == true)
+        XCTAssertEqual(actionHandler["timeout"] as? Int, 12)
+        let ordinaryHandler = try XCTUnwrap((hooks["PreToolUse"] as! [[String: Any]])
+            .flatMap { $0["hooks"] as? [[String: Any]] ?? [] }.first)
+        XCTAssertEqual(ordinaryHandler["timeout"] as? Int, 1)
+
+        XCTAssertTrue(isInstalled(installer.install()))
+        rootObject = try JSONSerialization.jsonObject(with: Data(contentsOf: target.hooksFile)) as! [String: Any]
+        hooks = rootObject["hooks"] as! [String: Any]
+        let mirrorGroups = hooks["PermissionRequest"] as! [[String: Any]]
+        let mirrorHandler = try XCTUnwrap(mirrorGroups.flatMap { $0["hooks"] as? [[String: Any]] ?? [] }.first)
+        XCTAssertFalse((mirrorHandler["command"] as? String)?.contains("--permission-actions") == true)
+        XCTAssertEqual(mirrorHandler["timeout"] as? Int, 1)
+    }
+
     func testMalformedDuplicateKeysRemainByteForByteUntouched() throws {
         let bytes = Data(#"{"hooks":{},"hooks":{}}"#.utf8)
         try bytes.write(to: target.hooksFile)

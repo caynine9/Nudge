@@ -2,6 +2,31 @@ import Foundation
 import CryptoKit
 
 struct CodexHookAdapter {
+    func permissionRequest(from data: Data, budgetMilliseconds: Int = PermissionRequestMessage.maximumBudgetMilliseconds) throws -> PermissionRequestMessage {
+        guard data.count <= 1_048_576, try !StrictJSONValidator.hasDuplicateObjectKeys(data),
+              let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              object["hook_event_name"] as? String == CodexHookEvent.permissionRequest.rawValue,
+              let sessionID = boundedString(object["session_id"], maximumBytes: WireEnvelope.maximumIdentifierBytes),
+              let turnID = boundedString(object["turn_id"], maximumBytes: WireEnvelope.maximumIdentifierBytes),
+              let toolName = boundedString(object["tool_name"], maximumBytes: 128) else {
+            throw HookPayloadError.missingIdentity
+        }
+        let input = object["tool_input"] as? [String: Any]
+        let invocationID = UUID().uuidString.lowercased()
+        let request = PermissionRequestMessage(
+            requestID: invocationID,
+            interactionID: invocationID,
+            sessionID: sessionID,
+            turnID: turnID,
+            toolCallID: boundedString(object["tool_use_id"], maximumBytes: WireEnvelope.maximumIdentifierBytes),
+            toolName: toolName,
+            summary: PermissionRequestSanitizer.summary(from: input?["description"]),
+            budgetMilliseconds: budgetMilliseconds
+        )
+        try request.validate()
+        return request
+    }
+
     func envelope(from data: Data, expectedEvent: CodexHookEvent, now: Date = Date()) throws -> WireEnvelope {
         guard data.count <= 1024 * 1024 else { throw HookPayloadError.inputTooLarge }
         guard try !StrictJSONValidator.hasDuplicateObjectKeys(data) else { throw HookPayloadError.invalidShape }

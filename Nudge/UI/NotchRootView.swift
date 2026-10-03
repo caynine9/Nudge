@@ -249,6 +249,8 @@ struct NotchRootView: View {
     private var liveAttention: some View {
         let interaction = appState.presentation.snapshot.pendingInteraction
         let isPermission = phase == .waitingPermission
+        let permissionStatus = isPermission ? appState.permissionActionStatus(for: interaction?.id) : nil
+        let permissionSummary = isPermission ? appState.permissionSummary(for: interaction?.id) : nil
         return VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 7) {
                 Image(systemName: isPermission ? "hand.raised.fill" : "questionmark.bubble.fill")
@@ -260,7 +262,7 @@ struct NotchRootView: View {
                 Spacer(minLength: 0)
                 NotchBadge(title: appState.presentation.snapshot.projectLabel)
             }
-            if let preview = interaction?.preview {
+            if let preview = permissionSummary ?? interaction?.preview {
                 Text(preview)
                     .font(NotchType.readable(12))
                     .foregroundStyle(.white.opacity(0.92))
@@ -270,11 +272,32 @@ struct NotchRootView: View {
                 Text("More requests need attention. Open Codex to review them.")
                     .font(NotchType.readable(11)).foregroundStyle(NotchPalette.secondary).lineLimit(2)
             } else if isPermission {
-                Text("Codex is waiting for approval in its native prompt.")
+                Text(permissionStatus == .available
+                     ? "Review this request summary, then choose once."
+                     : "Codex is waiting for approval in its native prompt.")
                     .font(NotchType.readable(11)).foregroundStyle(NotchPalette.secondary).lineLimit(2)
             } else {
                 Text("Open Codex to read and answer this question.")
                     .font(NotchType.readable(11)).foregroundStyle(NotchPalette.secondary).lineLimit(2)
+            }
+            if isPermission, appState.permissionActionsEnabled, permissionStatus == .available,
+               let interactionID = interaction?.id {
+                HStack(spacing: 8) {
+                    Button("Deny") {
+                        appState.decidePermission(interactionID: interactionID, decision: .deny)
+                    }
+                    .buttonStyle(NotchButtonStyle(tone: .neutral))
+                    .accessibilityHint("Send a deny decision for this permission request only.")
+                    Button("Allow Once") {
+                        appState.decidePermission(interactionID: interactionID, decision: .allowOnce)
+                    }
+                    .buttonStyle(NotchButtonStyle(tone: .primary))
+                    .accessibilityHint("Allow this single Codex permission request. No lasting rule is added.")
+                }
+                .frame(height: 30)
+            } else if isPermission, permissionStatus != nil, permissionStatus != .available {
+                Text(permissionStatusMessage(permissionStatus!))
+                    .font(NotchType.readable(10)).foregroundStyle(NotchPalette.secondary).lineLimit(2)
             }
             HStack(spacing: 8) {
                 Button {
@@ -324,6 +347,18 @@ struct NotchRootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(isPermission ? "Permission needed" : "Question for you"), \(appState.presentation.snapshot.projectLabel)")
+    }
+
+    private func permissionStatusMessage(_ status: PermissionActionStatus) -> String {
+        switch status {
+        case .available: ""
+        case .sending: "Sending this decision to Codex…"
+        case .sentToCodex: "Decision sent to Codex. Waiting for the request to finish."
+        case .queued: "Another permission request is ahead in this session."
+        case .returnedToCodex: "Continue this request in Codex."
+        case .expired: "Decision window ended. Continue in Codex."
+        case .unavailable: "Nudge cannot safely decide this request. Continue in Codex."
+        }
     }
 
     private var liveMonitor: some View {

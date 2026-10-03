@@ -18,4 +18,38 @@ enum BridgeProcessor {
             return false
         }
     }
+
+    static func forwardPermission(_ input: Data, request: PermissionRequestMessage,
+                                  socketPath: String = Self.socketPath,
+                                  timeout: TimeInterval = 0.25) -> Bool {
+        do {
+            var envelope = try CodexHookAdapter().envelope(from: input, expectedEvent: .permissionRequest)
+            let interaction = WireInteraction(id: request.interactionID, kind: .permission,
+                                              toolCallID: request.toolCallID, toolName: request.toolName,
+                                              preview: request.summary)
+            envelope = WireEnvelope(schemaVersion: envelope.schemaVersion, source: envelope.source,
+                                    event: envelope.event, sessionID: envelope.sessionID, turnID: envelope.turnID,
+                                    observedAtMilliseconds: envelope.observedAtMilliseconds,
+                                    projectLabel: envelope.projectLabel, toolCallID: envelope.toolCallID,
+                                    tool: envelope.tool, toolName: envelope.toolName, interaction: interaction)
+            try envelope.validate()
+            try UnixSocketTransport.send(envelope, to: socketPath, timeout: timeout)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    static func hookOutput(for decision: PermissionDecision) -> Data? {
+        let output: [String: Any]
+        switch decision {
+        case .allowOnce:
+            output = ["hookSpecificOutput": ["hookEventName": "PermissionRequest",
+                                             "decision": ["behavior": "allow"]]]
+        case .deny:
+            output = ["hookSpecificOutput": ["hookEventName": "PermissionRequest",
+                                             "decision": ["behavior": "deny", "message": "Denied in Nudge."]]]
+        }
+        return try? JSONSerialization.data(withJSONObject: output, options: [.sortedKeys])
+    }
 }

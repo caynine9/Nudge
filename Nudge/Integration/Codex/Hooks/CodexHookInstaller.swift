@@ -18,6 +18,7 @@ struct CodexHookInstaller {
     let target: CodexConfigurationTarget
     let helperPath: URL
     var backupDirectory: URL? = nil
+    var permissionActionsEnabled = false
 
     private var command: String {
         "\(Self.shellQuote(helperPath.path)) --event"
@@ -74,7 +75,8 @@ struct CodexHookInstaller {
                 guard let groups = hooks[key] as? [[String: Any]] ?? (hooks[key] == nil ? [] : nil) else {
                     return .unsupportedConfiguration("The \(key) hook group has an unsupported shape.")
                 }
-                let expectedHandler = Self.handler(command: command, event: event)
+                let expectedHandler = Self.handler(command: command, event: event,
+                                                   permissionActionsEnabled: permissionActionsEnabled)
                 var foundCanonicalOwned = false
                 var rewritten: [[String: Any]] = []
                 for var group in groups {
@@ -85,6 +87,10 @@ struct CodexHookInstaller {
                     let canonicalOwnedGroup = Set(group.keys) == ["hooks"] && handlers.count == 1 && matching.count == 1
                         && NSDictionary(dictionary: handlers[matching[0]]).isEqual(to: expectedHandler)
                     if installing && canonicalOwnedGroup {
+                        if foundCanonicalOwned {
+                            changed = true
+                            continue
+                        }
                         foundCanonicalOwned = true
                         rewritten.append(group)
                         continue
@@ -104,7 +110,8 @@ struct CodexHookInstaller {
                     rewritten.append(group)
                 }
                 if installing && !foundCanonicalOwned {
-                    rewritten.append(["hooks": [Self.handler(command: command, event: event)]])
+                    rewritten.append(["hooks": [Self.handler(command: command, event: event,
+                                                               permissionActionsEnabled: permissionActionsEnabled)]])
                     changed = true
                 }
                 if !rewritten.isEmpty || hooks[key] != nil { hooks[key] = rewritten }
@@ -149,14 +156,19 @@ struct CodexHookInstaller {
         "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
     }
 
-    private static func handler(command: String, event: CodexHookEvent) -> [String: Any] {
-        ["type": "command", "command": "\(command) \(event.rawValue)", "timeout": 1]
+    private static func handler(command: String, event: CodexHookEvent,
+                                permissionActionsEnabled: Bool) -> [String: Any] {
+        let usesActionMode = event == .permissionRequest && permissionActionsEnabled
+        let arguments = usesActionMode ? " \(event.rawValue) --permission-actions" : " \(event.rawValue)"
+        return ["type": "command", "command": command + arguments,
+                "timeout": usesActionMode ? 12 : 1]
     }
 
     private static func isOwned(_ handler: [String: Any], command: String) -> Bool {
         guard handler["type"] as? String == "command",
               let value = handler["command"] as? String else { return false }
-        return value.hasPrefix(command + " ") && CodexHookEvent.allCases.contains { value == "\(command) \($0.rawValue)" }
+        if CodexHookEvent.allCases.contains(where: { value == "\(command) \($0.rawValue)" }) { return true }
+        return value == "\(command) PermissionRequest --permission-actions"
     }
 
     private static func ensureDirectory(_ url: URL, mode: mode_t) throws {

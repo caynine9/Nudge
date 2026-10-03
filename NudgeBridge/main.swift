@@ -8,9 +8,27 @@ guard let eventFlag = arguments.firstIndex(of: "--event"),
     finish(includeNeutralJSON: false)
 }
 
-let deadline = DispatchTime.now().uptimeNanoseconds + 250_000_000
+let bridgeStart = DispatchTime.now().uptimeNanoseconds
+let deadline = bridgeStart + 250_000_000
+let responseDeadline = bridgeStart + 10_000_000_000
 do {
     let input = try readStandardInput(deadline: deadline)
+    if event == .permissionRequest, arguments.contains("--permission-actions") {
+        let remaining = remainingSeconds(until: responseDeadline)
+        let budgetMilliseconds = max(1, min(PermissionRequestMessage.maximumBudgetMilliseconds,
+                                            Int(remaining * 1_000)))
+        let request = try CodexHookAdapter().permissionRequest(from: input, budgetMilliseconds: budgetMilliseconds)
+        guard BridgeProcessor.forwardPermission(input, request: request, socketPath: socketPath,
+                                                timeout: min(0.25, remaining)) else {
+            finish(includeNeutralJSON: false)
+        }
+        let decision = try? PermissionSocketTransport.exchange(request, timeout: remainingSeconds(until: responseDeadline))
+        if let decision, let output = BridgeProcessor.hookOutput(for: decision) {
+            FileHandle.standardOutput.write(output)
+            FileHandle.standardOutput.write(Data("\n".utf8))
+        }
+        finish(includeNeutralJSON: false)
+    }
     if DispatchTime.now().uptimeNanoseconds < deadline {
         let remaining = Double(deadline - DispatchTime.now().uptimeNanoseconds) / 1_000_000_000
         _ = BridgeProcessor.forward(input, expectedEvent: event, socketPath: socketPath, timeout: remaining, now: Date())
@@ -19,6 +37,11 @@ do {
     // The bridge never writes provider data or diagnostics back into Codex.
 }
 finish(includeNeutralJSON: event == .stop)
+
+func remainingSeconds(until deadline: UInt64) -> TimeInterval {
+    let now = DispatchTime.now().uptimeNanoseconds
+    return now >= deadline ? 0 : Double(deadline - now) / 1_000_000_000
+}
 
 var socketPath: String {
     #if DEBUG

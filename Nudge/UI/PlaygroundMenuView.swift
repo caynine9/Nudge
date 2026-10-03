@@ -26,6 +26,13 @@ struct PlaygroundMenuView: View {
         Text("Opens the selected local session link in Codex Desktop when its ID is available.")
             .font(.caption)
 
+        Toggle("Permission actions (experimental)", isOn: Binding(
+            get: { appState.permissionActionsEnabled },
+            set: { appState.setPermissionActionsEnabled($0) }
+        ))
+        Text("Off by default. Refresh Codex hooks after changing this. Runtime support must be verified separately for Desktop and CLI.")
+            .font(.caption)
+
         Button(appState.wantsPanelVisible ? "Expand Nudge" : "Show Nudge") {
             appState.showPanel()
         }

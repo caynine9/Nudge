@@ -19,6 +19,7 @@ final class AppState: ObservableObject {
     @Published private(set) var navigationFailed = false
     @Published private(set) var navigationRecoveryAvailable = false
     @Published private(set) var usePreciseThreadNavigation = false
+    @Published var permissionActionsEnabled = UserDefaults.standard.bool(forKey: "permissionActionsEnabled")
     @Published private(set) var integrationStatus = "Waiting for Codex hooks."
     @Published private(set) var socketStatus = "Starting local event listener…"
     @Published private(set) var lastEventAt: Date?
@@ -29,9 +30,12 @@ final class AppState: ObservableObject {
     @Published private(set) var isCodexUsageLoading = false
     @Published private(set) var isCodexUsageUnavailable = false
     @Published private(set) var selectedLiveSessionID: String?
+    @Published private(set) var permissionActionStatuses: [String: PermissionActionStatus] = [:]
+    @Published private(set) var permissionActionRequests: [String: PermissionRequestMessage] = [:]
 
     private let reducer = PresentationReducer()
     private let codexNavigator: CodexNavigator
+    private var permissionBroker: PermissionBroker?
     private let navigationSettings: CodexNavigationSettings
     private var scheduled: [PresentationTimer: Task<Void, Never>] = [:]
     private var activeNavigationID: UUID?
@@ -112,6 +116,10 @@ final class AppState: ObservableObject {
     func updateLiveSnapshot(_ snapshot: ActivityMonitorSnapshot, observedEvent: CodexHookEvent? = nil) {
         latestLiveSnapshot = snapshot
         activeSessions = snapshot.activeSessions
+        let pendingPermissionIDs = Set(snapshot.activeSessions.flatMap(\.pendingInteractions)
+            .filter { $0.kind == .permission }.map(\.id))
+        permissionActionStatuses = permissionActionStatuses.filter { pendingPermissionIDs.contains($0.key) }
+        permissionActionRequests = permissionActionRequests.filter { pendingPermissionIDs.contains($0.key) }
         sessionTitles = sessionTitles.filter { id, _ in snapshot.activeSessions.contains { $0.sessionID == id } }
         if let observedEvent { observedHookEvents.insert(observedEvent) }
         if let selectedLiveSessionID,
@@ -128,6 +136,10 @@ final class AppState: ObservableObject {
     func reconcileLiveSnapshotAfterWake(_ snapshot: ActivityMonitorSnapshot) {
         latestLiveSnapshot = snapshot
         activeSessions = snapshot.activeSessions
+        let pendingPermissionIDs = Set(snapshot.activeSessions.flatMap(\.pendingInteractions)
+            .filter { $0.kind == .permission }.map(\.id))
+        permissionActionStatuses = permissionActionStatuses.filter { pendingPermissionIDs.contains($0.key) }
+        permissionActionRequests = permissionActionRequests.filter { pendingPermissionIDs.contains($0.key) }
         sessionTitles = sessionTitles.filter { id, _ in snapshot.activeSessions.contains { $0.sessionID == id } }
         if let selectedLiveSessionID,
            !snapshot.activeSessions.contains(where: { $0.sessionID == selectedLiveSessionID }) {
@@ -191,7 +203,70 @@ final class AppState: ObservableObject {
 
     func openAttentionInCodex() {
         guard !isDemoMode, presentation.snapshot.phase.isAttention else { return }
+        if let interactionID = presentation.snapshot.pendingInteraction?.id {
+            Task { await permissionBroker?.returnToCodex(interactionID: interactionID) }
+        }
         navigate(to: presentation.snapshot, activationOnly: false, collapseOnSuccess: false)
+    }
+
+    func configurePermissionBroker(_ broker: PermissionBroker) {
+        permissionBroker = broker
+    }
+
+    func permissionActionStatus(for interactionID: String?) -> PermissionActionStatus? {
+        guard let interactionID else { return nil }
+        return permissionActionStatuses[interactionID]
+    }
+
+    func permissionSummary(for interactionID: String?) -> String? {
+        guard let interactionID else { return nil }
+        return permissionActionRequests[interactionID]?.summary
+    }
+
+    func decidePermission(interactionID: String, decision: PermissionDecision) {
+        guard !isDemoMode, permissionActionsEnabled, let broker = permissionBroker,
+              presentation.snapshot.phase == .waitingPermission,
+              let interaction = presentation.snapshot.pendingInteraction,
+              interaction.id == interactionID else { return }
+        if let request = permissionActionRequests[interactionID] {
+            updatePermissionActionStatus(.sending, for: request)
+        }
+        let sessionID = presentation.snapshot.sessionID
+        let turnID = presentation.snapshot.turnID
+        Task {
+            _ = await broker.decide(interactionID: interactionID, sessionID: sessionID,
+                                    turnID: turnID, decision: decision)
+        }
+    }
+
+    func isCurrentPermissionRequest(_ request: PermissionRequestMessage) -> Bool {
+        guard permissionActionsEnabled, !isDemoMode,
+              presentation.snapshot.phase == .waitingPermission,
+              presentation.snapshot.sessionID == request.sessionID,
+              presentation.snapshot.turnID == request.turnID,
+              let interaction = presentation.snapshot.pendingInteraction else { return false }
+        return interaction.kind == .permission && interaction.id == request.interactionID
+    }
+
+    func updatePermissionActionStatus(_ status: PermissionActionStatus, for request: PermissionRequestMessage) {
+        if let previous = permissionActionStatuses[request.interactionID],
+           !Self.canTransitionPermissionStatus(from: previous, to: status) { return }
+        permissionActionStatuses[request.interactionID] = status
+        permissionActionRequests[request.interactionID] = request
+    }
+
+    private static func canTransitionPermissionStatus(from previous: PermissionActionStatus,
+                                                      to next: PermissionActionStatus) -> Bool {
+        switch previous {
+        case .queued: return next != .queued
+        case .available: return next != .queued && next != .available
+        case .sending: return next != .queued && next != .available
+        case .sentToCodex, .returnedToCodex, .expired, .unavailable: return false
+        }
+    }
+
+    func setPermissionListenerUnavailable() {
+        integrationStatus = "Permission response listener unavailable. Codex native approval remains available."
     }
 
     func openLiveSession(_ sessionID: String) {
@@ -207,6 +282,16 @@ final class AppState: ObservableObject {
         guard usePreciseThreadNavigation != enabled else { return }
         usePreciseThreadNavigation = enabled
         navigationSettings.usePreciseThreadNavigation = enabled
+    }
+
+    func setPermissionActionsEnabled(_ enabled: Bool) {
+        guard permissionActionsEnabled != enabled else { return }
+        permissionActionsEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "permissionActionsEnabled")
+        integrationStatus = enabled
+            ? "Permission actions preference enabled. Refresh hooks after verifying both host contracts."
+            : "Permission actions disabled. Refresh hooks to restore mirror-only mode."
+        if !enabled { Task { await permissionBroker?.cancelAll() } }
     }
 
     func retryCodexActivation() {
@@ -357,13 +442,15 @@ final class AppState: ObservableObject {
         }
         guard confirmHookChange(
             title: "Install or refresh Codex hooks?",
-            message: "Nudge will refresh its local bridge helper, then ensure seven lifecycle hooks are registered in:\n\(target.hooksFile.path)\n\nExisting handlers will be preserved. An existing file is backed up before it changes. Review and trust Nudge's hooks in Codex, including PermissionRequest, PreToolUse, and PostToolUse, so activity and attention can appear. In Codex CLI, inspect them with /hooks."
+            message: "Nudge will refresh its local bridge helper, then ensure seven lifecycle hooks are registered in:\n\(target.hooksFile.path)\n\nPermission actions are \(permissionActionsEnabled ? "ON (Allow Once/Deny, 12-second hook limit)" : "OFF (mirror only)"). Existing handlers will be preserved. An existing file is backed up before it changes. Review and trust Nudge's hooks in Codex, including PermissionRequest, PreToolUse, and PostToolUse, so activity and attention can appear. In Codex CLI, inspect them with /hooks."
         ) else { return }
+        let permissionActionsEnabled = self.permissionActionsEnabled
         Task.detached(priority: .userInitiated) { [weak self] in
             let result: HookInstallResult
             do {
                 let helper = try BridgeHelperInstaller().install()
-                result = CodexHookInstaller(target: target, helperPath: helper).install()
+                result = CodexHookInstaller(target: target, helperPath: helper,
+                                            permissionActionsEnabled: permissionActionsEnabled).install()
             } catch {
                 result = .failed(error.localizedDescription)
             }

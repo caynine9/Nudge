@@ -64,7 +64,7 @@ struct NotchLayoutChecks {
                 let sessions = (0..<count).map { index in
                     ActivitySnapshot(
                         sessionID: "fixture-session-\(index + 1)", turnID: "turn-\(index + 1)",
-                        projectLabel: index.isMultiple(of: 2) ? "Nudge" : "Invoice",
+                        projectLabel: count == 2 || index.isMultiple(of: 2) ? "Nudge" : "Invoice",
                         phase: index == 0 ? .toolUse : .thinking,
                         currentTool: index == 0
                             ? ToolActivity(category: .test, summary: "Running Xcode tests", symbol: "checkmark.circle")
@@ -77,7 +77,12 @@ struct NotchLayoutChecks {
                 var state = PresentationState()
                 state.snapshot = sessions[0]
                 state.pinnedOpen = true
-                let app = AppState(presentation: state, activeSessions: sessions)
+                let titles = Dictionary(uniqueKeysWithValues: sessions.map { session in
+                    (session.sessionID, session.sessionID.hasSuffix("1")
+                        ? "Improve session status and navigation"
+                        : "Review the latest changes in this project")
+                })
+                let app = AppState(presentation: state, activeSessions: sessions, sessionTitles: titles)
                 let canvas = geometry.canvasSize
                 let expected = geometry.size(for: .expanded, activeSessionCount: count)
                 let root = NotchRootView(

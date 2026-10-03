@@ -21,6 +21,7 @@ final class AppState: ObservableObject {
     @Published private(set) var lastEventAt: Date?
     @Published private(set) var observedHookEvents: Set<CodexHookEvent> = []
     @Published private(set) var activeSessions: [ActivitySnapshot] = []
+    @Published private(set) var sessionTitles: [String: String] = [:]
     @Published private(set) var selectedLiveSessionID: String?
 
     private let reducer = PresentationReducer()
@@ -32,11 +33,12 @@ final class AppState: ObservableObject {
         UserDefaults.standard.dictionary(forKey: "selectedCodexHomes") as? [String: String] ?? [:]
 
     init(presentation: PresentationState? = nil, navigationIssue: String? = nil,
-         activeSessions: [ActivitySnapshot] = []) {
+         activeSessions: [ActivitySnapshot] = [], sessionTitles: [String: String] = [:]) {
         if let presentation { self.presentation = presentation }
         else { self.presentation.snapshot = .empty }
         self.navigationIssue = navigationIssue
         self.activeSessions = activeSessions
+        self.sessionTitles = sessionTitles
     }
 
     func choose(_ phase: SessionPhase) {
@@ -79,6 +81,7 @@ final class AppState: ObservableObject {
     func updateLiveSnapshot(_ snapshot: ActivityMonitorSnapshot, observedEvent: CodexHookEvent? = nil) {
         latestLiveSnapshot = snapshot
         activeSessions = snapshot.activeSessions
+        sessionTitles = sessionTitles.filter { id, _ in snapshot.activeSessions.contains { $0.sessionID == id } }
         if let observedEvent { observedHookEvents.insert(observedEvent) }
         if let selectedLiveSessionID,
            !snapshot.activeSessions.contains(where: { $0.sessionID == selectedLiveSessionID }) {
@@ -91,6 +94,7 @@ final class AppState: ObservableObject {
     func reconcileLiveSnapshotAfterWake(_ snapshot: ActivityMonitorSnapshot) {
         latestLiveSnapshot = snapshot
         activeSessions = snapshot.activeSessions
+        sessionTitles = sessionTitles.filter { id, _ in snapshot.activeSessions.contains { $0.sessionID == id } }
         if let selectedLiveSessionID,
            !snapshot.activeSessions.contains(where: { $0.sessionID == selectedLiveSessionID }) {
             self.selectedLiveSessionID = nil
@@ -102,6 +106,12 @@ final class AppState: ObservableObject {
         guard activeSessions.contains(where: { $0.sessionID == sessionID }) else { return }
         selectedLiveSessionID = sessionID
         if !isDemoMode { dispatch(.snapshotChanged(presentationSnapshot(from: latestLiveSnapshot))) }
+    }
+
+    func setSessionTitle(_ title: String, for sessionID: String) {
+        guard activeSessions.contains(where: { $0.sessionID == sessionID }),
+              sessionTitles[sessionID] != title else { return }
+        sessionTitles[sessionID] = title
     }
 
     func toggleAttentionSessionList() {
@@ -175,6 +185,15 @@ final class AppState: ObservableObject {
     func configurationTarget(for host: CodexHost) -> CodexConfigurationTarget {
         let override = selectedCodexHomes[host.rawValue].map { URL(fileURLWithPath: $0, isDirectory: true) }
         return CodexConfigurationResolver().target(for: host, explicitCodexHome: override)
+    }
+
+    func codexHomePathsForMetadata() -> [String] {
+        let inherited = ProcessInfo.processInfo.environment["CODEX_HOME"]
+        let fallback = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex").path
+        return CodexHost.allCases.compactMap { host in
+            let path = selectedCodexHomes[host.rawValue] ?? inherited ?? fallback
+            return path.hasPrefix("/") ? path : nil
+        }
     }
 
     func chooseConfigurationFolder() {

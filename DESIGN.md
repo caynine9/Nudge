@@ -213,7 +213,7 @@ In minimized presentation, Nudgie occupies the left wing and the current phase s
 
 Expanded notched content starts after a blank band equal to the camera height, then the extracted content-top spacing. Horizontal content insets differ between notched and fallback displays. Monitor content uses a 12 pt vertical stack and a 12 pt mascot-to-text gap. Permission actions share width and an 8 pt gap; question choices occupy full width in a stack with a 5 pt gap. No outer nested task card or separate detached expanded panel is implemented. Expanded notched modes may cover menu items; minimized preserves the chosen compact wing footprint.
 
-Expanded live monitor shows each detected active Codex session in its own direct row. Rows show a short stable session ID, project folder label, semantic phase, and bounded current-tool summary. The hook contract provides no conversation title, so Nudge does not invent one. Attention rows sort first; other rows sort by most recently started or resumed turn. Tool updates and selection do not reorder them. At two or more active sessions, the monitor grows by 10 pt, from 160 to 170 pt below the camera band (380 × 170 pt on a standard display, cutout height + 170 pt on a notched display). Further rows scroll inside this fixed viewport with native scroll indicators. Collapsed and peek modes keep one focused session. Live monitor has no Live badge; synthetic content retains its Demo badge.
+Expanded live monitor presents project folder labels as group headings with indented session rows beneath them. A session title from bounded, read-only local metadata is the primary row text; an unavailable title falls back to a short stable ID. Semantic phase and the current tool summary form one right-aligned status column, with the tool detail subdued. Hook activity remains the source of session order: the group with the highest-priority session comes first, and sessions retain their order within each group. Tool updates and selection do not reorder them. At two or more active sessions, the monitor grows by 10 pt, from 160 to 170 pt below the camera band (380 × 170 pt on a standard display, cutout height + 170 pt on a notched display). Further rows scroll inside this fixed viewport with native scroll indicators. Collapsed and peek modes keep one focused session. Live monitor has no Live badge; synthetic content retains its Demo badge.
 
 **The One Anchor Rule.** Keep every notched mode attached to the same screen-top anchor, with a blank camera band before expanded content.
 
@@ -231,7 +231,7 @@ Notched shells form a continuous top-attached housing with rounded shoulders, no
 
 ### Monitor row and host action
 
-Live monitor rows show project label, short session identity, phase, and bounded tool summary. Selecting an active row changes the focused context used by collapsed and peek modes; it does not claim exact thread navigation. No Live badge is shown. Demo preview content remains explicitly marked Demo. Exact session and terminal-tab routing are unverified and are not claimed.
+Live monitor rows sit below project headings and show a verified local title or a short session ID fallback. Phase and bounded tool summary share the right-hand column. Clicking an active row sends the full session ID through Codex's documented local-chat deep link; actual destination remains live-host verification. No Live badge is shown. Demo preview content remains explicitly marked Demo. Terminal-tab routing is outside the current integration.
 
 ### Buttons
 

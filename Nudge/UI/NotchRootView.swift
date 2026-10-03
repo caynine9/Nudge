@@ -314,14 +314,14 @@ struct NotchRootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else if contentMode == .expanded || contentMode == .attention {
                 ScrollView(.vertical) {
-                    LazyVStack(spacing: 0) {
-                        ForEach(liveSessionsForDisplay, id: \.sessionID) { session in
-                            VStack(spacing: 0) {
+                    VStack(spacing: 0) {
+                        ForEach(liveListEntries) { entry in
+                            switch entry {
+                            case let .project(label, count):
+                                liveProjectHeader(label, sessionCount: count,
+                                                  showsCount: liveProjectGroups.count > 1)
+                            case let .session(session):
                                 liveSessionRow(session)
-                                if session.sessionID != liveSessionsForDisplay.last?.sessionID {
-                                    Rectangle().fill(Color.white.opacity(0.10)).frame(height: 1)
-                                        .padding(.leading, 8)
-                                }
                             }
                         }
                     }
@@ -332,7 +332,11 @@ struct NotchRootView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityLabel("\(appState.activeSessions.count) active Codex sessions")
             } else {
-                liveSessionRow(appState.presentation.snapshot)
+                VStack(spacing: 0) {
+                    liveProjectHeader(appState.presentation.snapshot.projectLabel, sessionCount: 1,
+                                      showsCount: false)
+                    liveSessionRow(appState.presentation.snapshot)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -349,41 +353,83 @@ struct NotchRootView: View {
         return count == 1 ? "1 active session" : "\(count) active sessions"
     }
 
+    private enum LiveListEntry: Identifiable {
+        case project(String, Int)
+        case session(ActivitySnapshot)
+
+        var id: String {
+            switch self {
+            case let .project(label, _): "project:\(label)"
+            case let .session(session): session.sessionID
+            }
+        }
+    }
+
+    private var liveProjectGroups: [ActivityProjectGroup] {
+        ActivityProjectGroups.make(from: liveSessionsForDisplay)
+    }
+
+    private var liveListEntries: [LiveListEntry] {
+        liveProjectGroups.flatMap { group in
+            [.project(group.label, group.sessions.count)] + group.sessions.map(LiveListEntry.session)
+        }
+    }
+
+    private func liveProjectHeader(_ label: String, sessionCount: Int, showsCount: Bool) -> some View {
+        HStack(spacing: 7) {
+            Image(systemName: "folder.fill")
+                .font(NotchType.readable(10))
+                .foregroundStyle(NotchPalette.secondary)
+            Text(label == "Codex" ? "Unknown project" : label)
+                .font(NotchType.readable(12, weight: .semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            if showsCount && sessionCount > 1 {
+                Text("\(sessionCount) sessions")
+                    .font(NotchType.readable(10))
+                    .foregroundStyle(NotchPalette.muted)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+        .accessibilityAddTraits(.isHeader)
+    }
+
     private func liveSessionRow(_ session: ActivitySnapshot) -> some View {
-        Button { appState.openLiveSession(session.sessionID) } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 8) {
-                    Text(sessionLabel(for: session))
-                        .font(NotchType.readable(12, weight: .medium))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                    Spacer(minLength: 4)
+        let title = appState.sessionTitles[session.sessionID]
+        return Button { appState.openLiveSession(session.sessionID) } label: {
+            HStack(alignment: .top, spacing: 10) {
+                Text(title ?? sessionLabel(for: session))
+                    .font(title == nil ? NotchType.code(11) : NotchType.readable(12, weight: .medium))
+                    .foregroundStyle(title == nil ? NotchPalette.secondary : .white)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .trailing, spacing: 3) {
                     Label(livePhaseTitle(session.phase), systemImage: session.phase.symbol)
                         .font(NotchType.readable(11))
                         .foregroundStyle(accent(for: session.phase))
                         .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
+                    if let tool = session.currentTool {
+                        Text(tool.summary)
+                            .font(NotchType.readable(11))
+                            .foregroundStyle(NotchPalette.secondary)
+                            .lineLimit(1)
+                    }
                 }
-                Text(session.projectLabel)
-                    .font(NotchType.readable(11))
-                    .foregroundStyle(NotchPalette.secondary)
-                    .lineLimit(1)
-                if let tool = session.currentTool {
-                    Label(tool.summary, systemImage: tool.symbol)
-                        .font(NotchType.readable(11))
-                        .foregroundStyle(accent(for: session.phase))
-                        .lineLimit(1)
-                }
+                .frame(width: 122, alignment: .trailing)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.leading, 24)
+            .padding(.trailing, 8)
+            .padding(.vertical, 7)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(NotchButtonStyle(tone: .row))
         .disabled(!session.phase.isActive || appState.isOpeningHost)
         .accessibilityHint("Open this chat in Codex Desktop.")
-        .accessibilityLabel("\(session.projectLabel), \(sessionLabel(for: session)), \(livePhaseTitle(session.phase))\(session.currentTool.map { ", \($0.summary)" } ?? "")")
+        .accessibilityLabel("\(session.projectLabel), \(title ?? sessionLabel(for: session)), \(livePhaseTitle(session.phase))\(session.currentTool.map { ", \($0.summary)" } ?? "")")
         .accessibilityAddTraits(appState.selectedLiveSessionID == session.sessionID ? .isSelected : [])
     }
 

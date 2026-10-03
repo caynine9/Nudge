@@ -18,8 +18,8 @@ final class CodexEventIngressTests: XCTestCase {
     func testIngressProcessesEventsInOrderAndWakeBarrierWaitsForPendingEvents() async {
         let monitor = CodexEventMonitor()
         let capture = SnapshotCapture()
-        let ingress = CodexEventIngress(monitor: monitor) { snapshot, event in
-            await capture.append(snapshot, event: event)
+        let ingress = CodexEventIngress(monitor: monitor) { snapshot, event, sessionID in
+            await capture.append(snapshot, event: event, sessionID: sessionID)
         }
         let origin = Date(timeIntervalSinceNow: -5)
 
@@ -36,6 +36,8 @@ final class CodexEventIngressTests: XCTestCase {
         XCTAssertEqual(phases, [.thinking, .toolUse, .thinking, .completed])
         let events = await capture.events
         XCTAssertEqual(events, [.userPromptSubmit, .preToolUse, .postToolUse, .stop])
+        let sessionIDs = await capture.sessionIDs
+        XCTAssertEqual(sessionIDs, Array(repeating: "ingress-test", count: 4))
         ingress.finish()
     }
 
@@ -52,9 +54,11 @@ final class CodexEventIngressTests: XCTestCase {
 private actor SnapshotCapture {
     private(set) var phases: [SessionPhase] = []
     private(set) var events: [CodexHookEvent] = []
+    private(set) var sessionIDs: [String] = []
 
-    func append(_ snapshot: ActivityMonitorSnapshot, event: CodexHookEvent) {
+    func append(_ snapshot: ActivityMonitorSnapshot, event: CodexHookEvent, sessionID: String) {
         phases.append(snapshot.focused.phase)
         events.append(event)
+        sessionIDs.append(sessionID)
     }
 }

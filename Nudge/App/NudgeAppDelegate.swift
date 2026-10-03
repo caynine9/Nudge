@@ -18,9 +18,24 @@ final class NudgeAppDelegate: NSObject, NSApplicationDelegate {
         let state = AppState.shared
         panelController = NotchPanelController(appState: state)
         let monitor = eventMonitor
-        let ingress = CodexEventIngress(monitor: monitor) { snapshot, event in
-            await MainActor.run {
+        let titleReader = CodexThreadMetadataReader(codexAppURL: NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: CodexHost.desktop.bundleIdentifier))
+        let ingress = CodexEventIngress(monitor: monitor) { snapshot, event, sessionID in
+            let homePaths = await MainActor.run { () -> [String] in
                 AppState.shared.updateLiveSnapshot(snapshot, observedEvent: event)
+                return AppState.shared.codexHomePathsForMetadata()
+            }
+            guard snapshot.activeSessions.contains(where: { $0.sessionID == sessionID }) else { return }
+            Task.detached(priority: .utility) {
+                let homes = homePaths.map { URL(fileURLWithPath: $0, isDirectory: true) }
+                if let title = await titleReader.title(for: sessionID, codexHomes: homes) {
+                    await MainActor.run { AppState.shared.setSessionTitle(title, for: sessionID) }
+                } else if event == .userPromptSubmit {
+                    try? await Task.sleep(for: .seconds(2))
+                    if let title = await titleReader.title(for: sessionID, codexHomes: homes, forceRefresh: true) {
+                        await MainActor.run { AppState.shared.setSessionTitle(title, for: sessionID) }
+                    }
+                }
             }
         }
         eventIngress = ingress

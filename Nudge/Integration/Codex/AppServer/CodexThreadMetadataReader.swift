@@ -1,11 +1,27 @@
 import Darwin
+import CoreFoundation
 import Foundation
 
-// Optional title enrichment for sessions already seen through lifecycle hooks.
-// A separate app-server is never used as the source of activity or session discovery.
+struct CodexUsageWindow: Equatable, Sendable {
+    let usedPercent: Int
+    let resetsAt: Date
+}
+
+struct CodexUsageSnapshot: Equatable, Sendable {
+    let fiveHour: CodexUsageWindow
+    let weekly: CodexUsageWindow
+}
+
+// Optional local metadata reads: thread titles and authenticated rate-limit snapshots.
+// Lifecycle hooks remain the source of activity and session discovery.
 actor CodexThreadMetadataReader {
     private struct CachedTitle {
         let value: String?
+        let expiresAt: Date
+    }
+
+    private struct CachedUsage {
+        let value: CodexUsageSnapshot?
         let expiresAt: Date
     }
 
@@ -13,6 +29,8 @@ actor CodexThreadMetadataReader {
     private let timeoutMilliseconds: Int32
     private var cached: [String: CachedTitle] = [:]
     private var pending: [String: Task<String?, Never>] = [:]
+    private var cachedUsage: [String: CachedUsage] = [:]
+    private var pendingUsage: [String: Task<CodexUsageSnapshot?, Never>] = [:]
 
     init(codexAppURL: URL?, timeoutMilliseconds: Int32 = 2_500) {
         var candidates: [URL] = []
@@ -62,6 +80,32 @@ actor CodexThreadMetadataReader {
         return value
     }
 
+    func usage(for codexHome: URL, forceRefresh: Bool = false) async -> CodexUsageSnapshot? {
+        let home = codexHome.standardizedFileURL
+        let key = home.path
+        if !forceRefresh, let cached = cachedUsage[key], cached.expiresAt > Date() { return cached.value }
+        if let pending = pendingUsage[key] { return await pending.value }
+
+        let binaries = binaryCandidates
+        let timeout = timeoutMilliseconds
+        let task = Task.detached(priority: .utility) {
+            await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .utility).async {
+                    continuation.resume(returning: Self.lookupUsage(home: home, binaries: binaries, timeout: timeout))
+                }
+            }
+        }
+        pendingUsage[key] = task
+        let value = await task.value
+        pendingUsage.removeValue(forKey: key)
+        cachedUsage[key] = CachedUsage(value: value, expiresAt: Date().addingTimeInterval(value == nil ? 30 : 120))
+        cachedUsage = cachedUsage.filter { $0.value.expiresAt > Date() }
+        while cachedUsage.count > 8, let oldest = cachedUsage.min(by: { $0.value.expiresAt < $1.value.expiresAt }) {
+            cachedUsage.removeValue(forKey: oldest.key)
+        }
+        return value
+    }
+
     private static func lookup(sessionID: String, homes: [URL], binaries: [URL], timeout: Int32) -> String? {
         for binary in binaries where FileManager.default.isExecutableFile(atPath: binary.path) {
             for home in homes {
@@ -77,6 +121,30 @@ actor CodexThreadMetadataReader {
     }
 
     private static func readTitle(sessionID: String, binary: URL, home: URL, timeout: Int32) -> String? {
+        guard let reply = readRequest(method: "thread/read",
+                                      params: ["threadId": sessionID, "includeTurns": false],
+                                      binary: binary, home: home, timeout: timeout) else { return nil }
+        return title(in: reply, expectedSessionID: sessionID)
+    }
+
+    private static func lookupUsage(home: URL, binaries: [URL], timeout: Int32) -> CodexUsageSnapshot? {
+        let deadline = DispatchTime.now().uptimeNanoseconds + UInt64(max(timeout, 1)) * 1_000_000
+        for binary in binaries where FileManager.default.isExecutableFile(atPath: binary.path) {
+            let now = DispatchTime.now().uptimeNanoseconds
+            guard now < deadline else { return nil }
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: home.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else { return nil }
+            let remainingMilliseconds = Int32(max(1, (deadline - now) / 1_000_000))
+            guard let reply = readRequest(method: "account/rateLimits/read", params: nil,
+                                          binary: binary, home: home, timeout: remainingMilliseconds) else { continue }
+            return usageSnapshot(in: reply, now: Date())
+        }
+        return nil
+    }
+
+    private static func readRequest(method: String, params: [String: Any]?, binary: URL,
+                                    home: URL, timeout: Int32) -> [String: Any]? {
         let process = Process()
         process.executableURL = binary
         process.arguments = ["app-server", "--listen", "stdio://"]
@@ -100,15 +168,15 @@ actor CodexThreadMetadataReader {
 
         let deadline = DispatchTime.now().uptimeNanoseconds + UInt64(max(timeout, 1)) * 1_000_000
         var buffer = Data()
+        var request: [String: Any] = ["method": method, "id": 2]
+        if let params { request["params"] = params }
         guard send(["method": "initialize", "id": 1,
-                    "params": ["clientInfo": ["name": "nudge_title_reader", "title": "Nudge", "version": "0.1.0"]]], to: input),
+                    "params": ["clientInfo": ["name": "nudge_metadata_reader", "title": "Nudge", "version": "0.1.0"]]], to: input),
               let initialized = response(id: 1, from: output, buffer: &buffer, deadline: deadline),
               initialized["result"] != nil,
               send(["method": "initialized", "params": [:]], to: input),
-              send(["method": "thread/read", "id": 2,
-                    "params": ["threadId": sessionID, "includeTurns": false]], to: input),
-              let reply = response(id: 2, from: output, buffer: &buffer, deadline: deadline) else { return nil }
-        return title(in: reply, expectedSessionID: sessionID)
+              send(request, to: input) else { return nil }
+        return response(id: 2, from: output, buffer: &buffer, deadline: deadline)
     }
 
     private static func send(_ object: [String: Any], to pipe: Pipe) -> Bool {
@@ -157,5 +225,51 @@ actor CodexThreadMetadataReader {
         }.joined().split(whereSeparator: \.isWhitespace).joined(separator: " ")
         guard !normalized.isEmpty else { return nil }
         return String(normalized.prefix(120))
+    }
+
+    static func usageSnapshot(in response: [String: Any], now: Date = Date()) -> CodexUsageSnapshot? {
+        guard let result = response["result"] as? [String: Any] else { return nil }
+        let buckets = result["rateLimitsByLimitId"] as? [String: Any]
+        let bucket: [String: Any]?
+        if let codexBucket = buckets?["codex"] as? [String: Any] {
+            bucket = codexBucket
+        } else if let legacy = result["rateLimits"] as? [String: Any],
+                  legacy["limitId"] as? String == "codex" {
+            bucket = legacy
+        } else {
+            bucket = nil
+        }
+        guard let bucket else { return nil }
+
+        var fiveHour: CodexUsageWindow?
+        var weekly: CodexUsageWindow?
+        for field in ["primary", "secondary"] {
+            guard let window = bucket[field] as? [String: Any],
+                  let duration = number(window["windowDurationMins"]),
+                  let percentage = number(window["usedPercent"]),
+                  percentage >= 0, percentage <= 100,
+                  let timestamp = decimal(window["resetsAt"]), timestamp.isFinite,
+                  Date(timeIntervalSince1970: timestamp) > now else { continue }
+            let usageWindow = CodexUsageWindow(usedPercent: Int(percentage.rounded()),
+                                               resetsAt: Date(timeIntervalSince1970: timestamp))
+            switch duration {
+            case 300: fiveHour = usageWindow
+            case 10_080: weekly = usageWindow
+            default: continue
+            }
+        }
+        guard let fiveHour, let weekly else { return nil }
+        return CodexUsageSnapshot(fiveHour: fiveHour, weekly: weekly)
+    }
+
+    private static func number(_ value: Any?) -> Double? {
+        guard let value = value as? NSNumber, CFGetTypeID(value) != CFBooleanGetTypeID() else { return nil }
+        let result = value.doubleValue
+        return result.isFinite ? result : nil
+    }
+
+    private static func decimal(_ value: Any?) -> Double? {
+        guard let value = value as? NSNumber, CFGetTypeID(value) != CFBooleanGetTypeID() else { return nil }
+        return value.doubleValue
     }
 }

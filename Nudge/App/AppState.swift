@@ -22,6 +22,9 @@ final class AppState: ObservableObject {
     @Published private(set) var observedHookEvents: Set<CodexHookEvent> = []
     @Published private(set) var activeSessions: [ActivitySnapshot] = []
     @Published private(set) var sessionTitles: [String: String] = [:]
+    @Published private(set) var codexUsage: CodexUsageSnapshot?
+    @Published private(set) var isCodexUsageLoading = false
+    @Published private(set) var isCodexUsageUnavailable = false
     @Published private(set) var selectedLiveSessionID: String?
 
     private let reducer = PresentationReducer()
@@ -29,6 +32,8 @@ final class AppState: ObservableObject {
     private var turnNumber = 1
     private var lastAttentionIdentity: String?
     private var latestLiveSnapshot = ActivityMonitorSnapshot.empty
+    private var codexMetadataReader: CodexThreadMetadataReader?
+    private var lastCodexUsageRefreshAt: Date?
     private var selectedCodexHomes: [String: String] =
         UserDefaults.standard.dictionary(forKey: "selectedCodexHomes") as? [String: String] ?? [:]
 
@@ -112,6 +117,39 @@ final class AppState: ObservableObject {
         guard activeSessions.contains(where: { $0.sessionID == sessionID }),
               sessionTitles[sessionID] != title else { return }
         sessionTitles[sessionID] = title
+    }
+
+    func configureCodexMetadataReader(_ reader: CodexThreadMetadataReader) {
+        codexMetadataReader = reader
+    }
+
+    func refreshCodexUsageIfNeeded() {
+        guard !isDemoMode, !isCodexUsageLoading, let codexMetadataReader else { return }
+        let cooldown: TimeInterval = codexUsage == nil ? 60 : 300
+        if let lastCodexUsageRefreshAt,
+           Date().timeIntervalSince(lastCodexUsageRefreshAt) < cooldown { return }
+
+        let selectedPath = selectedCodexHomes[CodexHost.desktop.rawValue]
+            ?? ProcessInfo.processInfo.environment["CODEX_HOME"]
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex").path
+        guard selectedPath.hasPrefix("/") else {
+            codexUsage = nil
+            isCodexUsageUnavailable = true
+            lastCodexUsageRefreshAt = Date()
+            return
+        }
+
+        isCodexUsageLoading = true
+        isCodexUsageUnavailable = false
+        let home = URL(fileURLWithPath: selectedPath, isDirectory: true)
+        Task { [weak self] in
+            let snapshot = await codexMetadataReader.usage(for: home)
+            guard let self else { return }
+            self.codexUsage = snapshot
+            self.isCodexUsageUnavailable = snapshot == nil
+            self.isCodexUsageLoading = false
+            self.lastCodexUsageRefreshAt = Date()
+        }
     }
 
     func toggleAttentionSessionList() {

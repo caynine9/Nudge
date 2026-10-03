@@ -38,6 +38,9 @@ struct NotchRootView: View {
     private var reduceMotion: Bool { appState.reduceMotion || accessibilityReduceMotion }
 
     private var contentMode: NotchPresentation { mode == .collapsed ? lastOpenMode : mode }
+    private var displaysUsageLimits: Bool {
+        (mode == .peek || mode == .expanded) && !phase.isAttention
+    }
 
     private var openSize: CGSize {
         if mode != .collapsed { return targetSize }
@@ -150,6 +153,14 @@ struct NotchRootView: View {
         }
         .onChange(of: accessibilityReduceMotion) { _, value in appState.setReduceMotion(value) }
         .onAppear { appState.setReduceMotion(accessibilityReduceMotion) }
+        .task(id: "\(mode)-\(isDemo)-\(phase.isAttention)") {
+            guard displaysUsageLimits, !isDemo else { return }
+            while !Task.isCancelled {
+                appState.refreshCodexUsageIfNeeded()
+                do { try await Task.sleep(for: .seconds(300)) }
+                catch { return }
+            }
+        }
         .accessibilityIdentifier("nudge.notch")
     }
 
@@ -285,6 +296,12 @@ struct NotchRootView: View {
 
     private var liveMonitor: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if displaysUsageLimits {
+                HStack {
+                    usageLimits
+                    Spacer(minLength: 0)
+                }
+            }
             HStack {
                 if appState.presentation.showsSessionList && phase.isAttention {
                     Button("Back to request") { appState.toggleAttentionSessionList() }
@@ -542,17 +559,55 @@ struct NotchRootView: View {
                 .font(NotchType.readable(10))
                 .foregroundStyle(NotchPalette.orange)
                 .accessibilityHidden(true)
-            usageWindow(PlaygroundScenario.fiveHourUsage)
-            Rectangle()
-                .fill(NotchPalette.muted)
-                .frame(width: 1, height: 10)
-                .accessibilityHidden(true)
-            usageWindow(PlaygroundScenario.weeklyUsage)
+            if isDemo {
+                usageWindow(PlaygroundScenario.fiveHourUsage)
+                usageSeparator
+                usageWindow(PlaygroundScenario.weeklyUsage)
+            } else if let usage = appState.codexUsage {
+                liveUsageWindow("5h", window: usage.fiveHour)
+                usageSeparator
+                liveUsageWindow("7d", window: usage.weekly)
+            } else {
+                unavailableUsageWindow("5h")
+                usageSeparator
+                unavailableUsageWindow("7d")
+            }
         }
         .font(NotchType.readable(11))
         .monospacedDigit()
         .fixedSize(horizontal: true, vertical: false)
-        .help("Demo usage: percentage used · time until reset")
+        .help(usageHelpText)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(usageAccessibilityText)
+    }
+
+    private var usageSeparator: some View {
+        Rectangle()
+            .fill(NotchPalette.muted)
+            .frame(width: 1, height: 10)
+            .accessibilityHidden(true)
+    }
+
+    private var usageHelpText: String {
+        if isDemo { return "Demo usage: percentage used · time until reset" }
+        if appState.codexUsage != nil { return "Live Codex usage: percentage used · time until reset" }
+        if appState.isCodexUsageLoading { return "Loading Codex usage…" }
+        if appState.isCodexUsageUnavailable { return "Codex usage is unavailable. Check your Codex sign-in." }
+        return "Codex usage loads while the monitor is open."
+    }
+
+    private var usageAccessibilityText: String {
+        if isDemo {
+            return "Demo usage. 5-hour window: \(PlaygroundScenario.fiveHourUsage.usedPercent) percent used, resets in \(PlaygroundScenario.fiveHourUsage.accessibilityReset). Weekly window: \(PlaygroundScenario.weeklyUsage.usedPercent) percent used, resets in \(PlaygroundScenario.weeklyUsage.accessibilityReset)."
+        }
+        guard let usage = appState.codexUsage else {
+            if appState.isCodexUsageLoading { return "Loading Codex usage." }
+            if appState.isCodexUsageUnavailable { return "Codex usage unavailable. Check your Codex sign-in." }
+            return "Codex usage loads while the monitor is open."
+        }
+        let fiveHourReset = usage.fiveHour.resetsAt.formatted(date: .omitted, time: .shortened)
+        let weeklyReset = usage.weekly.resetsAt.formatted(date: .omitted, time: .shortened)
+        return "Codex usage. 5-hour window: \(usage.fiveHour.usedPercent) percent used, resets at \(fiveHourReset). Weekly window: \(usage.weekly.usedPercent) percent used, resets at \(weeklyReset)."
     }
 
     private func usageWindow(_ window: PlaygroundScenario.UsageWindow) -> some View {
@@ -565,6 +620,24 @@ struct NotchRootView: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Demo \(window.accessibilityName): \(window.usedPercent) percent used, resets in \(window.accessibilityReset)")
+    }
+
+    private func liveUsageWindow(_ label: String, window: CodexUsageWindow) -> some View {
+        HStack(spacing: 4) {
+            Text(label).foregroundStyle(.white.opacity(0.90))
+            Text("\(window.usedPercent)%")
+                .fontWeight(.medium)
+                .foregroundStyle(NotchPalette.green)
+            Text(window.resetsAt, style: .relative)
+                .foregroundStyle(NotchPalette.secondary)
+        }
+    }
+
+    private func unavailableUsageWindow(_ label: String) -> some View {
+        HStack(spacing: 4) {
+            Text(label).foregroundStyle(.white.opacity(0.72))
+            Text("—").foregroundStyle(NotchPalette.secondary)
+        }
     }
 
     private var permission: some View {

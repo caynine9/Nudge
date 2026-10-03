@@ -18,6 +18,7 @@ final class AppState: ObservableObject {
     @Published private(set) var integrationStatus = "Waiting for Codex hooks."
     @Published private(set) var socketStatus = "Starting local event listener…"
     @Published private(set) var lastEventAt: Date?
+    @Published private(set) var observedHookEvents: Set<CodexHookEvent> = []
     @Published private(set) var activeSessions: [ActivitySnapshot] = []
     @Published private(set) var selectedLiveSessionID: String?
 
@@ -73,9 +74,10 @@ final class AppState: ObservableObject {
         ))
     }
 
-    func updateLiveSnapshot(_ snapshot: ActivityMonitorSnapshot) {
+    func updateLiveSnapshot(_ snapshot: ActivityMonitorSnapshot, observedEvent: CodexHookEvent? = nil) {
         latestLiveSnapshot = snapshot
         activeSessions = snapshot.activeSessions
+        if let observedEvent { observedHookEvents.insert(observedEvent) }
         if let selectedLiveSessionID,
            !snapshot.activeSessions.contains(where: { $0.sessionID == selectedLiveSessionID }) {
             self.selectedLiveSessionID = nil
@@ -100,6 +102,29 @@ final class AppState: ObservableObject {
         if !isDemoMode { dispatch(.snapshotChanged(presentationSnapshot(from: latestLiveSnapshot))) }
     }
 
+    func openLiveSession(_ sessionID: String) {
+        guard !isDemoMode, !isOpeningHost,
+              activeSessions.contains(where: { $0.sessionID == sessionID }) else { return }
+        selectedLiveSessionID = sessionID
+        dispatch(.snapshotChanged(presentationSnapshot(from: latestLiveSnapshot)))
+        isOpeningHost = true
+        navigationIssue = nil
+        Task { @MainActor in
+            defer { isOpeningHost = false }
+            do {
+                switch try await CodexNavigator().openSession(sessionID) {
+                case .threadRouteAcceptedByOS:
+                    dispatch(.collapse)
+                case .desktopActivatedFallback:
+                    navigationIssue = "Codex Desktop opened, but it did not accept the exact session link."
+                }
+            } catch {
+                navigationIssue = (error as? CodexNavigator.NavigationError)?.localizedDescription
+                    ?? "Could not open this Codex chat. Open Codex Desktop, then try again."
+            }
+        }
+    }
+
     private func presentationSnapshot(from monitor: ActivityMonitorSnapshot) -> ActivitySnapshot {
         if let waiting = monitor.activeSessions.first(where: { $0.phase.isAttention }) { return waiting }
         if let selectedLiveSessionID,
@@ -113,7 +138,13 @@ final class AppState: ObservableObject {
     func setIntegrationStatus(_ status: String) { integrationStatus = status }
     var hookObservationStatus: String {
         guard let lastEventAt else { return "No hook observed yet; trust and host coverage are unverified." }
-        return "A Codex hook was observed at \(lastEventAt.formatted(date: .omitted, time: .shortened)); host coverage is unverified."
+        let observed = CodexHookEvent.allCases.filter(observedHookEvents.contains).map(\.rawValue).joined(separator: ", ")
+        return "Observed hooks: \(observed). Last event at \(lastEventAt.formatted(date: .omitted, time: .shortened)); host coverage is unverified."
+    }
+    var toolObservationStatus: String {
+        observedHookEvents.contains(.preToolUse)
+            ? "PreToolUse has been observed this launch."
+            : "No PreToolUse observed this launch. Check that Nudge's PreToolUse hook is reviewed and trusted in Codex (CLI: /hooks)."
     }
 
     func configurationTarget(for host: CodexHost) -> CodexConfigurationTarget {
@@ -156,7 +187,7 @@ final class AppState: ObservableObject {
         }
         guard confirmHookChange(
             title: "Install or refresh Codex hooks?",
-            message: "Nudge will refresh its local bridge helper, then ensure six lifecycle hooks are registered in:\n\(target.hooksFile.path)\n\nExisting handlers will be preserved. An existing file is backed up before it changes. Review and trust the exact hook definition in Codex afterward."
+            message: "Nudge will refresh its local bridge helper, then ensure six lifecycle hooks are registered in:\n\(target.hooksFile.path)\n\nExisting handlers will be preserved. An existing file is backed up before it changes. Review and trust Nudge's hooks in Codex, especially PreToolUse and PostToolUse, so tool activity can appear. In Codex CLI, inspect them with /hooks."
         ) else { return }
         Task.detached(priority: .userInitiated) { [weak self] in
             let result: HookInstallResult
@@ -201,7 +232,7 @@ final class AppState: ObservableObject {
     private static func message(for result: HookInstallResult, host: CodexHost) -> String {
         switch result {
         case let .installed(backup):
-            "Six hooks registered for \(host.title). Review and trust the exact definition in Codex; host coverage remains unverified. Backup: \(backup.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "new file")."
+            "Six hooks registered for \(host.title). Review and trust Nudge's hooks in Codex, especially PreToolUse and PostToolUse; host coverage remains unverified. Backup: \(backup.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "new file")."
         case .removed: "Nudge hooks removed from the selected config."
         case .alreadyInstalled: "The Nudge bridge helper was refreshed. Hooks were already registered, so no config rewrite was needed. Review trust and host coverage in Codex."
         case .notInstalled: "No Nudge-owned hooks were found in the selected config."

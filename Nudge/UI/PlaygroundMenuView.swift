@@ -74,6 +74,8 @@ struct PlaygroundMenuView: View {
                 .font(.caption)
             Text(appState.hookObservationStatus)
                 .font(.caption)
+            Text(appState.toolObservationStatus)
+                .font(.caption)
             Text(appState.integrationStatus)
                 .font(.caption)
             Button("Choose configuration folder…") { appState.chooseConfigurationFolder() }

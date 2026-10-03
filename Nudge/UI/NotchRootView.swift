@@ -220,6 +220,12 @@ struct NotchRootView: View {
                     .font(NotchType.readable(11))
                     .foregroundStyle(NotchPalette.secondary)
             }
+            if let issue = appState.navigationIssue {
+                Text(issue)
+                    .font(NotchType.readable(11))
+                    .foregroundStyle(NotchPalette.orange)
+                    .lineLimit(2)
+            }
             if liveSessionsForDisplay.isEmpty {
                 Text("Waiting for local Codex activity.")
                     .font(NotchType.readable(11))
@@ -263,7 +269,7 @@ struct NotchRootView: View {
     }
 
     private func liveSessionRow(_ session: ActivitySnapshot) -> some View {
-        Button { appState.selectLiveSession(session.sessionID) } label: {
+        Button { appState.openLiveSession(session.sessionID) } label: {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 8) {
                     Text(sessionLabel(for: session))
@@ -294,7 +300,8 @@ struct NotchRootView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(NotchButtonStyle(tone: .row))
-        .disabled(!session.phase.isActive)
+        .disabled(!session.phase.isActive || appState.isOpeningHost)
+        .accessibilityHint("Open this chat in Codex Desktop.")
         .accessibilityLabel("\(session.projectLabel), \(sessionLabel(for: session)), \(livePhaseTitle(session.phase))\(session.currentTool.map { ", \($0.summary)" } ?? "")")
         .accessibilityAddTraits(appState.selectedLiveSessionID == session.sessionID ? .isSelected : [])
     }

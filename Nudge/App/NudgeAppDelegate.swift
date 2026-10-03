@@ -18,9 +18,9 @@ final class NudgeAppDelegate: NSObject, NSApplicationDelegate {
         let state = AppState.shared
         panelController = NotchPanelController(appState: state)
         let monitor = eventMonitor
-        let ingress = CodexEventIngress(monitor: monitor) { snapshot in
+        let ingress = CodexEventIngress(monitor: monitor) { snapshot, event in
             await MainActor.run {
-                AppState.shared.updateLiveSnapshot(snapshot)
+                AppState.shared.updateLiveSnapshot(snapshot, observedEvent: event)
             }
         }
         eventIngress = ingress

@@ -16,12 +16,14 @@ Wire v2 membawa allowlist ringkasan tetap. App baru menerima wire v1 lama sebaga
 
 | Pemeriksaan | Hasil |
 |---|---|
-| `xcodebuild -project Nudge.xcodeproj -scheme Nudge -configuration Debug -destination 'platform=macOS' test` | Lulus; 51 test, 0 gagal. Build Debug termasuk di dalam action ini. |
+| `xcodebuild -project Nudge.xcodeproj -scheme Nudge -configuration Debug -destination 'platform=macOS' clean test` | Lulus; 53 test, 0 gagal. Build Debug termasuk di dalam action ini. |
 | Swift 6 notch geometry checks | Lulus; expanded dengan sesi overflow bertambah tepat 10 pt. |
 | Swift 6 static layout checks | Lulus; state notch dan fallback dengan 2 serta 8 sesi tetap di dalam batas shell/canvas. |
 | `git diff --check` | Lulus. |
-| Codex Desktop/CLI live event coverage | Belum diuji; fixture dan build tidak membuktikan dukungan host. |
+| Codex Desktop/CLI live event coverage | Belum diuji; fixture dan build tidak membuktikan dukungan host. Menu Codex hooks kini memperlihatkan event type yang diterima selama launch berjalan. |
 | Native visual/input/accessibility QA | Menunggu developer di macOS. |
+
+Klik row mengirim deep link resmi `codex://threads/<thread-id>` menggunakan full hook session ID dan meruntuhkan Nudge ketika OS menerima route; jika URL ditolak, Nudge mengaktifkan Codex Desktop serta menampilkan fallback. Dokumen resmi menyebut hook `session_id` dan deep-link `thread-id` secara terpisah, sehingga kecocokan ID harus diverifikasi manual pada Desktop/CLI. Penerimaan URL saja tidak membuktikan chat target terbuka.
 
 Geometry/layout checks adalah fixture render hermetic, bukan pengganti uji scroll, interaksi panel, notch fisik, atau host nyata. Tidak ada hook/config pengguna yang dipasang, dihapus, atau diubah.
 
@@ -32,7 +34,8 @@ Geometry/layout checks adalah fixture render hermetic, bukan pengganti uji scrol
 3. Pastikan daftar hanya menaikkan tinggi expanded baseline 10 pt. Scroll sampai sesi terakhir dengan scrollbar, lalu kirim update atau masukkan sesi baru saat sedang membaca bagian bawah. Row/posisi yang sedang dibaca harus tetap terjaga dan scroll tidak menutup panel.
 4. Jalankan new serta resumed local thread langsung di Codex Desktop. Catat versi, effective config, trust/reload, dan event coverage. Cocokkan session ID/project dan tool summary; thinking tanpa tool harus tetap tampil sebagai Thinking. Ulangi terpisah di Codex CLI.
 5. Jalankan sedikitnya dua thread secara bersamaan, termasuk lintas project. Uji working, tool selesai, question/permission yang tersedia, completion, failure/interruption, dan selection; pastikan status/row yang tepat berubah. Jangan menganggap judul atau task commentary tampil sampai host benar-benar menyediakan sumber yang tervalidasi.
-6. Di sandbox config, gunakan aksi refresh helper dan verifikasi entry hook tetap idempotent serta foreign hooks/backup terjaga. Uji mismatch versi hanya dengan fixture/sandbox; pastikan Codex tetap dapat bekerja saat Nudge tidak tersedia.
-7. Uji keyboard, VoiceOver, window focus, sleep/wake, dan Reduce Motion sambil expanded list terbuka. Perubahan list/wake tidak boleh replay completion atau menghilangkan pending attention.
+6. Klik row active di Nudge, lalu pastikan thread penuh yang sama terbuka di Codex Desktop; jika tidak, catat hasil dan pastikan fallback mengaktifkan Desktop. Deep link yang diterima OS bukan verifikasi thread target.
+7. Di sandbox config, gunakan aksi refresh helper dan verifikasi entry hook tetap idempotent serta foreign hooks/backup terjaga. Uji mismatch versi hanya dengan fixture/sandbox; pastikan Codex tetap dapat bekerja saat Nudge tidak tersedia.
+8. Uji keyboard, VoiceOver, window focus, sleep/wake, dan Reduce Motion sambil expanded list terbuka. Perubahan list/wake tidak boleh replay completion atau menghilangkan pending attention.
 
 Catat versi dan hasil Desktop/CLI secara terpisah. Acceptance live M1 tetap pending sampai workflow Desktop new/resumed dan CLI masing-masing dibuktikan developer.

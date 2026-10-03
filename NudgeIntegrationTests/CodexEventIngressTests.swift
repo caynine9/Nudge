@@ -1,11 +1,25 @@
 import XCTest
 
 final class CodexEventIngressTests: XCTestCase {
+    func testSessionIDBuildsEncodedCodexLocalThreadLink() throws {
+        let url = try XCTUnwrap(CodexThreadDeepLink.url(sessionID: "01a0fcb0-0000-4000-8000-aabbccddeeff"))
+        XCTAssertEqual(url.absoluteString, "codex://threads/01a0fcb0-0000-4000-8000-aabbccddeeff")
+
+        let opaqueID = try XCTUnwrap(CodexThreadDeepLink.url(sessionID: "session:part/with space"))
+        XCTAssertEqual(opaqueID.absoluteString, "codex://threads/session%3Apart%2Fwith%20space")
+    }
+
+    func testInvalidSessionIDDoesNotProduceCodexLink() {
+        XCTAssertNil(CodexThreadDeepLink.url(sessionID: ""))
+        XCTAssertNil(CodexThreadDeepLink.url(sessionID: "session\nid"))
+        XCTAssertNil(CodexThreadDeepLink.url(sessionID: String(repeating: "x", count: 257)))
+    }
+
     func testIngressProcessesEventsInOrderAndWakeBarrierWaitsForPendingEvents() async {
         let monitor = CodexEventMonitor()
         let capture = SnapshotCapture()
-        let ingress = CodexEventIngress(monitor: monitor) { snapshot in
-            await capture.append(snapshot)
+        let ingress = CodexEventIngress(monitor: monitor) { snapshot, event in
+            await capture.append(snapshot, event: event)
         }
         let origin = Date(timeIntervalSinceNow: -5)
 
@@ -20,6 +34,8 @@ final class CodexEventIngressTests: XCTestCase {
         XCTAssertEqual(restored.focused.turnID, "turn")
         let phases = await capture.phases
         XCTAssertEqual(phases, [.thinking, .toolUse, .thinking, .completed])
+        let events = await capture.events
+        XCTAssertEqual(events, [.userPromptSubmit, .preToolUse, .postToolUse, .stop])
         ingress.finish()
     }
 
@@ -34,8 +50,10 @@ final class CodexEventIngressTests: XCTestCase {
 
 private actor SnapshotCapture {
     private(set) var phases: [SessionPhase] = []
+    private(set) var events: [CodexHookEvent] = []
 
-    func append(_ snapshot: ActivityMonitorSnapshot) {
+    func append(_ snapshot: ActivityMonitorSnapshot, event: CodexHookEvent) {
         phases.append(snapshot.focused.phase)
+        events.append(event)
     }
 }

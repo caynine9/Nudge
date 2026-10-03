@@ -1,7 +1,7 @@
 import Foundation
 
 final class CodexEventIngress: @unchecked Sendable {
-    typealias SnapshotHandler = @Sendable (ActivityMonitorSnapshot) async -> Void
+    typealias SnapshotHandler = @Sendable (ActivityMonitorSnapshot, CodexHookEvent) async -> Void
 
     private enum Message: Sendable {
         case event(WireEnvelope)
@@ -19,7 +19,7 @@ final class CodexEventIngress: @unchecked Sendable {
                 switch message {
                 case let .event(envelope):
                     let snapshot = await monitor.consume(envelope)
-                    await onSnapshot(snapshot)
+                    await onSnapshot(snapshot, envelope.event)
                 case let .snapshot(reply):
                     reply.resume(returning: await monitor.currentSnapshot())
                 }

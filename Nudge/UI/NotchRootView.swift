@@ -1,4 +1,18 @@
+import AppKit
 import SwiftUI
+
+private struct SessionScrollMetrics: Equatable {
+    var contentHeight: CGFloat = 0
+    var viewportHeight: CGFloat = 0
+    var contentOffset: CGFloat = 0
+
+    var hasOverflow: Bool { contentHeight > viewportHeight + 1 }
+
+    var progress: CGFloat {
+        let range = max(1, contentHeight - viewportHeight)
+        return min(1, max(0, contentOffset / range))
+    }
+}
 
 struct NotchRootView: View {
     @EnvironmentObject private var appState: AppState
@@ -14,6 +28,8 @@ struct NotchRootView: View {
     @State private var lastOpenMode: NotchPresentation = .peek
     @State private var lastFeedback: InteractionFeedback?
     @State private var scrollAnchorSessionID: String?
+    @State private var sessionScrollMetrics = SessionScrollMetrics()
+    @State private var showsNavigationFeedback = false
     var hoverChanged: ((Bool) -> Void)? = nil
 
     private var mode: NotchPresentation { appState.presentation.mode }
@@ -75,7 +91,7 @@ struct NotchRootView: View {
             } else {
                 content
                     .padding(.horizontal, isNotched ? 28 : 16)
-                    .padding(.top, 16).padding(.bottom, 14)
+                    .padding(.top, 16).padding(.bottom, 22)
             }
             Spacer(minLength: 0)
         }
@@ -313,7 +329,7 @@ struct NotchRootView: View {
                     Spacer(minLength: 0)
                 }
             }
-            HStack {
+            HStack(spacing: 6) {
                 if appState.presentation.showsSessionList && phase.isAttention {
                     Button("Back to request") { appState.toggleAttentionSessionList() }
                         .font(NotchType.readable(11, weight: .medium))
@@ -324,23 +340,11 @@ struct NotchRootView: View {
                     .font(NotchType.readable(11, weight: .medium))
                     .foregroundStyle(NotchPalette.secondary)
                 }
+                navigationFeedbackButton
                 Spacer()
                 Text(activeSessionsLabel)
                     .font(NotchType.readable(11))
                     .foregroundStyle(NotchPalette.secondary)
-            }
-            if let issue = appState.navigationIssue {
-                Text(issue)
-                    .font(NotchType.readable(11))
-                    .foregroundStyle(NotchPalette.orange)
-                    .lineLimit(2)
-            }
-            if appState.navigationRecoveryAvailable {
-                Button("Open Codex Desktop") { appState.retryCodexActivation() }
-                    .font(NotchType.readable(11, weight: .medium))
-                    .foregroundStyle(NotchPalette.cyan)
-                    .buttonStyle(.plain)
-                    .disabled(appState.isOpeningHost)
             }
             if liveSessionsForDisplay.isEmpty {
                 Text("Waiting for local Codex activity.")
@@ -362,9 +366,28 @@ struct NotchRootView: View {
                     }
                     .scrollTargetLayout()
                 }
-                .scrollIndicators(.visible)
+                .scrollIndicators(.never)
                 .scrollPosition(id: $scrollAnchorSessionID, anchor: .top)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .overlay(alignment: .trailing) {
+                    GeometryReader { geometry in
+                        Capsule()
+                            .fill(NotchPalette.secondary.opacity(0.72))
+                            .frame(width: 2, height: min(22, geometry.size.height))
+                            .offset(x: geometry.size.width - 5,
+                                    y: max(0, geometry.size.height - 22) * sessionScrollMetrics.progress)
+                    }
+                    .opacity(sessionScrollMetrics.hasOverflow ? 1 : 0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                }
+                .onScrollGeometryChange(for: SessionScrollMetrics.self) { geometry in
+                    SessionScrollMetrics(contentHeight: geometry.contentSize.height,
+                                         viewportHeight: geometry.containerSize.height,
+                                         contentOffset: geometry.contentOffset.y)
+                } action: { _, metrics in
+                    sessionScrollMetrics = metrics
+                }
                 .accessibilityLabel("\(appState.activeSessions.count) active Codex sessions")
             } else {
                 VStack(spacing: 0) {
@@ -375,6 +398,44 @@ struct NotchRootView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private var navigationFeedbackButton: some View {
+        if let issue = appState.navigationIssue {
+            Button { showsNavigationFeedback.toggle() } label: {
+                Image(systemName: appState.navigationFailed ? "exclamationmark.circle" : "info.circle")
+                    .font(NotchType.readable(12))
+                    .foregroundStyle(appState.navigationFailed ? NotchPalette.orange : NotchPalette.secondary)
+                    .frame(width: 22, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(issue)
+            .accessibilityLabel(appState.navigationFailed ? "Codex navigation failed" : "Codex navigation status")
+            .accessibilityValue(issue)
+            .accessibilityHint("Show navigation details and the option to open Codex Desktop.")
+            .popover(isPresented: $showsNavigationFeedback, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(issue)
+                        .font(NotchType.readable(11))
+                        .foregroundStyle(appState.navigationFailed ? NotchPalette.orange : .white)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if appState.navigationRecoveryAvailable {
+                        Button("Open Codex Desktop") {
+                            showsNavigationFeedback = false
+                            appState.retryCodexActivation()
+                        }
+                        .font(NotchType.readable(11, weight: .medium))
+                        .disabled(appState.isOpeningHost)
+                        .accessibilityHint("Activate Codex Desktop without sending a thread link.")
+                    }
+                }
+                .padding(16)
+                .frame(width: 280, alignment: .leading)
+                .environment(\.colorScheme, .dark)
+            }
+        }
     }
 
     private var liveSessionsForDisplay: [ActivitySnapshot] {
@@ -435,30 +496,31 @@ struct NotchRootView: View {
     private func liveSessionRow(_ session: ActivitySnapshot) -> some View {
         let title = appState.sessionTitles[session.sessionID]
         return Button { appState.openLiveSession(session.sessionID) } label: {
-            HStack(alignment: .top, spacing: 10) {
-                Text(title ?? sessionLabel(for: session))
-                    .font(title == nil ? NotchType.code(11) : NotchType.readable(12, weight: .medium))
-                    .foregroundStyle(title == nil ? NotchPalette.secondary : .white)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                VStack(alignment: .trailing, spacing: 3) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(title ?? sessionLabel(for: session))
+                        .font(title == nil ? NotchType.code(11) : NotchType.readable(13, weight: .medium))
+                        .foregroundStyle(title == nil ? NotchPalette.secondary : .white)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     Label(livePhaseTitle(session.phase), systemImage: session.phase.symbol)
                         .font(NotchType.readable(11))
                         .foregroundStyle(accent(for: session.phase))
                         .lineLimit(1)
-                    if let tool = session.currentTool {
-                        Text(tool.summary)
-                            .font(NotchType.readable(11))
-                            .foregroundStyle(NotchPalette.secondary)
-                            .lineLimit(1)
-                    }
+                        .fixedSize(horizontal: true, vertical: false)
                 }
-                .frame(width: 122, alignment: .trailing)
+                if let tool = session.currentTool {
+                    Text(tool.summary)
+                        .font(NotchType.readable(11))
+                        .foregroundStyle(NotchPalette.secondary)
+                        .lineLimit(1)
+                }
             }
             .padding(.leading, 24)
             .padding(.trailing, 8)
             .padding(.vertical, 7)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
             .contentShape(Rectangle())
         }
         .buttonStyle(NotchButtonStyle(tone: .row))
@@ -573,10 +635,7 @@ struct NotchRootView: View {
 
     private var usageLimits: some View {
         HStack(spacing: 8) {
-            Image(systemName: "sparkle")
-                .font(NotchType.readable(10))
-                .foregroundStyle(NotchPalette.orange)
-                .accessibilityHidden(true)
+            codexUsageIcon
             if isDemo {
                 usageWindow(PlaygroundScenario.fiveHourUsage)
                 usageSeparator
@@ -597,6 +656,18 @@ struct NotchRootView: View {
         .help(usageHelpText)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(usageAccessibilityText)
+    }
+
+    @ViewBuilder
+    private var codexUsageIcon: some View {
+        if let url = Bundle.main.url(forResource: "CodexUsageIcon", withExtension: "png"),
+           let image = NSImage(contentsOf: url) {
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 18, height: 18)
+                .accessibilityHidden(true)
+        }
     }
 
     private var usageSeparator: some View {

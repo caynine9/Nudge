@@ -76,7 +76,7 @@ spacing:
   diff-inset: "9pt"
   attention-stack: "10pt"
   monitor-stack: "12pt"
-  content-bottom: "14pt"
+  content-bottom: "22pt"
   content-top: "16pt"
   notch-content-horizontal: "28pt"
   fallback-content-horizontal: "16pt"
@@ -201,8 +201,8 @@ This is an adaptive native panel, not a responsive web grid. Geometry derives fr
 | Mode | Notched panel | Standard display |
 | --- | --- | --- |
 | Minimized | cutout width + 84 pt; cutout height + 2 pt | 200 × 38 pt |
-| Monitor peek | at least 380 pt wide; cutout height + 132 pt | 380 × 132 pt |
-| Expanded monitor | at least 380 pt wide; cutout height + 160 pt for one session, + 170 pt for multiple sessions | 380 × 160 pt; 380 × 170 pt for multiple sessions |
+| Monitor peek | at least 410 pt wide; cutout height + 132 pt | 410 × 132 pt |
+| Expanded monitor | at least 480 pt wide; cutout height + 160 pt for one session, + 170 pt for multiple sessions | 480 × 160 pt; 480 × 170 pt for multiple sessions |
 | Approval | at least 380 pt wide; cutout height + 224 pt | 380 × 224 pt |
 | Question | at least 340 pt wide; cutout height + 192 pt | 340 × 192 pt |
 | Confirmation | at least 260 pt wide; cutout height + 46 pt | 260 × 46 pt |
@@ -211,9 +211,11 @@ For a 180 × 32 pt cutout, minimized remains 264 × 34 pt. Width is clamped to t
 
 In minimized presentation, Nudgie occupies the left wing and the current phase symbol occupies the right wing for every phase. The standard-display row follows the same order, with the task title between them. This user-confirmed placement preserves the camera exclusion band and existing dimensions.
 
-Expanded notched content starts after a blank band equal to the camera height, then the extracted content-top spacing. Horizontal content insets differ between notched and fallback displays. Monitor content uses a 12 pt vertical stack and a 12 pt mascot-to-text gap. Permission actions share width and an 8 pt gap; question choices occupy full width in a stack with a 5 pt gap. No outer nested task card or separate detached expanded panel is implemented. Expanded notched modes may cover menu items; minimized preserves the chosen compact wing footprint.
+Expanded notched content starts after a blank band equal to the camera height, then the extracted content-top spacing. Horizontal content insets differ between notched and fallback displays. Expanded content has a 16 pt top inset and 22 pt bottom inset. Monitor content uses a 12 pt vertical stack and a 12 pt mascot-to-text gap. Permission actions share width and an 8 pt gap; question choices occupy full width in a stack with a 5 pt gap. No outer nested task card or separate detached expanded panel is implemented. Expanded notched modes may cover menu items; minimized preserves the chosen compact wing footprint.
 
-Expanded live monitor presents project folder labels as group headings with indented session rows beneath them. A session title from bounded, read-only local metadata is the primary row text; an unavailable title falls back to a short stable ID. Semantic phase and the current tool summary form one right-aligned status column, with the tool detail subdued. Hook activity remains the source of session order: the group with the highest-priority session comes first, and sessions retain their order within each group. Tool updates and selection do not reorder them. At two or more active sessions, the monitor grows by 10 pt, from 160 to 170 pt below the camera band (380 × 170 pt on a standard display, cutout height + 170 pt on a notched display). Further rows scroll inside this fixed viewport with native scroll indicators. Collapsed and peek modes keep one focused session. Live monitor has no Live badge; synthetic content retains its Demo badge.
+Expanded live monitor presents project folder labels as group headings with indented session rows beneath them. A session title from bounded, read-only local metadata is the primary row text; an unavailable title falls back to a short stable ID. The semantic phase sits beside the title, while the current tool summary sits below it. Hook activity remains the source of session order: the group with the highest-priority session comes first, and sessions retain their order within each group. Tool updates and selection do not reorder them. At two or more active sessions, the monitor grows by 10 pt, from 160 to 170 pt below the camera band (480 × 170 pt on a standard display, cutout height + 170 pt on a notched display). Further rows scroll inside this fixed viewport using native trackpad or mouse-wheel scrolling; a 2 pt position marker indicates overflow without a full-size system scrollbar. Collapsed and peek modes keep one focused session. Live monitor has no Live badge; synthetic content retains its Demo badge.
+
+Live monitor navigation feedback occupies a small icon beside the Codex header, preserving the session viewport and bottom inset. Success uses the secondary color; failure uses orange. The icon's tooltip and accessibility value expose the message, and clicking it opens the full message with the available Desktop activation fallback in a native popover.
 
 **The One Anchor Rule.** Keep every notched mode attached to the same screen-top anchor, with a blank camera band before expanded content.
 
@@ -231,7 +233,7 @@ Notched shells form a continuous top-attached housing with rounded shoulders, no
 
 ### Monitor row and host action
 
-Live monitor rows sit below project headings and show a verified local title or a short session ID fallback. Phase and bounded tool summary share the right-hand column. Clicking an active row sends the full session ID through Codex's documented local-chat deep link; actual destination remains live-host verification. No Live badge is shown. Demo preview content remains explicitly marked Demo. Terminal-tab routing is outside the current integration.
+Live monitor rows sit below project headings and show a verified local title or a short session ID fallback. A short phase label stays at the right of the title; bounded tool detail uses the second line. The usage strip starts with an 18 pt Codex app icon, sourced from the installed official ChatGPT app's `icon-codex-dark-color.png` and bundled at 64 × 64 px. It identifies Codex usage without adding another provider. Clicking an active row sends the full session ID through Codex's documented local-chat deep link; actual destination remains live-host verification. No Live badge is shown. Demo preview content remains explicitly marked Demo. Terminal-tab routing is outside the current integration.
 
 ### Buttons
 

@@ -16,6 +16,7 @@
 		A10000000000000000000008 /* NotchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* NotchRootView.swift */; };
 		A10000000000000000000009 /* Nudgie.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* Nudgie.swift */; };
 		A1000000000000000000000A /* PlaygroundMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* PlaygroundMenuView.swift */; };
+		A80000000000000000000001 /* CodexUsageIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = B80000000000000000000001 /* CodexUsageIcon.png */; };
 		A90000000000000000000001 /* CodexNavigatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90000000000000000000001 /* CodexNavigatorTests.swift */; };
 		A1000000000000000000000D /* NotchComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000D; };
 		A1000000000000000000000E /* PlaygroundScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E; };
@@ -98,6 +99,7 @@
 		B1000000000000000000000D /* NotchComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nudge/UI/NotchComponents.swift; sourceTree = SOURCE_ROOT; };
 		B1000000000000000000000E /* PlaygroundScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nudge/Debug/PlaygroundScenario.swift; sourceTree = SOURCE_ROOT; };
 		B1000000000000000000000F /* CodexNavigator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nudge/Integration/Codex/Navigation/CodexNavigator.swift; sourceTree = SOURCE_ROOT; };
+		B80000000000000000000001 /* CodexUsageIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Nudge/Assets/CodexUsageIcon.png; sourceTree = SOURCE_ROOT; };
 		B20000000000000000000001 /* NudgeEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nudge/Core/Events/NudgeEvent.swift; sourceTree = SOURCE_ROOT; };
 		B20000000000000000000002 /* SessionReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nudge/Core/Reducer/SessionReducer.swift; sourceTree = SOURCE_ROOT; };
 		B20000000000000000000003 /* FocusPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nudge/Core/Reducer/FocusPolicy.swift; sourceTree = SOURCE_ROOT; };
@@ -148,6 +150,7 @@
 				B1000000000000000000000D /* NotchComponents.swift */,
 				B1000000000000000000000E /* PlaygroundScenario.swift */,
 				B1000000000000000000000F /* CodexNavigator.swift */,
+				B80000000000000000000001 /* CodexUsageIcon.png */,
                 B40000000000000000000001 /* SpaceTransition.swift */,
                 B40000000000000000000002 /* SpaceTransitionTests.swift */,
 				D10000000000000000000002 /* Nudge */,
@@ -248,7 +251,7 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		F10000000000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		F10000000000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A80000000000000000000001 /* CodexUsageIcon.png in Resources */, ); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */

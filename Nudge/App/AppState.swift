@@ -16,6 +16,9 @@ final class AppState: ObservableObject {
     @Published var integrationHost: CodexHost = .desktop
     @Published private(set) var isOpeningHost = false
     @Published private(set) var navigationIssue: String?
+    @Published private(set) var navigationFailed = false
+    @Published private(set) var navigationRecoveryAvailable = false
+    @Published private(set) var usePreciseThreadNavigation = false
     @Published private(set) var integrationStatus = "Waiting for Codex hooks."
     @Published private(set) var socketStatus = "Starting local event listener…"
     @Published private(set) var lastEventAt: Date?
@@ -28,7 +31,11 @@ final class AppState: ObservableObject {
     @Published private(set) var selectedLiveSessionID: String?
 
     private let reducer = PresentationReducer()
+    private let codexNavigator: CodexNavigator
+    private let navigationSettings: CodexNavigationSettings
     private var scheduled: [PresentationTimer: Task<Void, Never>] = [:]
+    private var activeNavigationID: UUID?
+    private var navigationFeedbackContext: CodexNavigationContext?
     private var turnNumber = 1
     private var lastAttentionIdentity: String?
     private var latestLiveSnapshot = ActivityMonitorSnapshot.empty
@@ -38,7 +45,13 @@ final class AppState: ObservableObject {
         UserDefaults.standard.dictionary(forKey: "selectedCodexHomes") as? [String: String] ?? [:]
 
     init(presentation: PresentationState? = nil, navigationIssue: String? = nil,
-         activeSessions: [ActivitySnapshot] = [], sessionTitles: [String: String] = [:]) {
+         activeSessions: [ActivitySnapshot] = [], sessionTitles: [String: String] = [:],
+         codexNavigator: CodexNavigator? = nil,
+         navigationSettings: CodexNavigationSettings? = nil) {
+        let settings = navigationSettings ?? CodexNavigationSettings()
+        self.navigationSettings = settings
+        self.codexNavigator = codexNavigator ?? CodexNavigator()
+        self.usePreciseThreadNavigation = settings.usePreciseThreadNavigation
         if let presentation { self.presentation = presentation }
         else { self.presentation.snapshot = .empty }
         self.navigationIssue = navigationIssue
@@ -49,6 +62,9 @@ final class AppState: ObservableObject {
     func choose(_ phase: SessionPhase) {
         guard isDemoMode else { return }
         navigationIssue = nil
+        navigationFailed = false
+        navigationRecoveryAvailable = false
+        navigationFeedbackContext = nil
         dispatch(.snapshotChanged(PlaygroundScenario.snapshot(turn: turnNumber, phase: phase)))
     }
 
@@ -56,6 +72,9 @@ final class AppState: ObservableObject {
         guard isDemoMode else { return }
         turnNumber += 1
         navigationIssue = nil
+        navigationFailed = false
+        navigationRecoveryAvailable = false
+        navigationFeedbackContext = nil
         dispatch(.snapshotChanged(PlaygroundScenario.snapshot(turn: turnNumber, phase: .thinking)))
     }
 
@@ -69,6 +88,13 @@ final class AppState: ObservableObject {
         guard isDemoMode != enabled else { return }
         isDemoMode = enabled
         navigationIssue = nil
+        navigationFailed = false
+        navigationRecoveryAvailable = false
+        navigationFeedbackContext = nil
+        if enabled {
+            activeNavigationID = nil
+            isOpeningHost = false
+        }
         if enabled {
             dispatch(.snapshotChanged(PlaygroundScenario.snapshot(turn: turnNumber, phase: .thinking)))
         } else {
@@ -93,7 +119,10 @@ final class AppState: ObservableObject {
             self.selectedLiveSessionID = nil
         }
         lastEventAt = Date()
-        if !isDemoMode { dispatch(.snapshotChanged(presentationSnapshot(from: snapshot))) }
+        if !isDemoMode {
+            dispatch(.snapshotChanged(presentationSnapshot(from: snapshot)))
+            clearStaleNavigationFeedback()
+        }
     }
 
     func reconcileLiveSnapshotAfterWake(_ snapshot: ActivityMonitorSnapshot) {
@@ -104,7 +133,10 @@ final class AppState: ObservableObject {
            !snapshot.activeSessions.contains(where: { $0.sessionID == selectedLiveSessionID }) {
             self.selectedLiveSessionID = nil
         }
-        if !isDemoMode { dispatch(.snapshotChanged(presentationSnapshot(from: snapshot))) }
+        if !isDemoMode {
+            dispatch(.snapshotChanged(presentationSnapshot(from: snapshot)))
+            clearStaleNavigationFeedback()
+        }
     }
 
     func selectLiveSession(_ sessionID: String) {
@@ -158,41 +190,97 @@ final class AppState: ObservableObject {
     }
 
     func openAttentionInCodex() {
-        guard !isDemoMode, !isOpeningHost, presentation.snapshot.phase.isAttention else { return }
-        isOpeningHost = true
-        navigationIssue = nil
-        Task { @MainActor in
-            defer { isOpeningHost = false }
-            do {
-                try await CodexNavigator().open(.desktop)
-            } catch {
-                navigationIssue = (error as? CodexNavigator.NavigationError)?.localizedDescription
-                    ?? "Could not open Codex Desktop. Open it, then try again."
-            }
-        }
+        guard !isDemoMode, presentation.snapshot.phase.isAttention else { return }
+        navigate(to: presentation.snapshot, activationOnly: false, collapseOnSuccess: false)
     }
 
     func openLiveSession(_ sessionID: String) {
         guard !isDemoMode, !isOpeningHost,
-              activeSessions.contains(where: { $0.sessionID == sessionID }) else { return }
+              let session = activeSessions.first(where: { $0.sessionID == sessionID }) else { return }
         selectedLiveSessionID = sessionID
         dispatch(.snapshotChanged(presentationSnapshot(from: latestLiveSnapshot)))
+        let target = activeSessions.first(where: { $0.sessionID == sessionID }) ?? session
+        navigate(to: target, activationOnly: false, collapseOnSuccess: !target.phase.isAttention)
+    }
+
+    func setPreciseThreadNavigation(_ enabled: Bool) {
+        guard usePreciseThreadNavigation != enabled else { return }
+        usePreciseThreadNavigation = enabled
+        navigationSettings.usePreciseThreadNavigation = enabled
+    }
+
+    func retryCodexActivation() {
+        guard !isDemoMode, !isOpeningHost, navigationRecoveryAvailable else { return }
+        navigate(to: presentation.snapshot, activationOnly: true, collapseOnSuccess: false)
+    }
+
+    private func navigate(to snapshot: ActivitySnapshot, activationOnly: Bool, collapseOnSuccess: Bool) {
+        guard !isOpeningHost, !isDemoMode else { return }
+        let context = CodexNavigationContext(sessionID: snapshot.sessionID, turnID: snapshot.turnID,
+                                             interactionID: snapshot.pendingInteraction?.id)
+        let requestID = UUID()
+        activeNavigationID = requestID
         isOpeningHost = true
         navigationIssue = nil
-        Task { @MainActor in
-            defer { isOpeningHost = false }
+        navigationFailed = false
+        navigationRecoveryAvailable = false
+        navigationFeedbackContext = nil
+
+        let candidateThreadID = snapshot.sessionID.isEmpty ? nil : snapshot.sessionID
+        let usePreciseRoute = usePreciseThreadNavigation
+        Task { @MainActor [weak self] in
+            guard let self else { return }
             do {
-                switch try await CodexNavigator().openSession(sessionID) {
-                case .threadRouteAcceptedByOS:
-                    dispatch(.collapse)
-                case .desktopActivatedFallback:
-                    navigationIssue = "Codex Desktop opened, but it did not accept the exact session link."
+                let outcome = try await codexNavigator.openDesktop(
+                    threadID: candidateThreadID,
+                    preciseNavigationEnabled: usePreciseRoute,
+                    activationOnly: activationOnly
+                )
+                finishNavigation(requestID: requestID, context: context) {
+                    navigationFeedbackContext = context
+                    navigationRecoveryAvailable = true
+                    navigationFailed = false
+                    switch outcome {
+                    case .threadRouteDispatched:
+                        navigationIssue = "Codex Desktop accepted the chat link. Select it manually if it isn't visible."
+                    case .desktopActivated:
+                        navigationIssue = "Codex Desktop opened. Select the chat if it isn't visible."
+                    }
+                    if collapseOnSuccess && !presentation.snapshot.phase.isAttention {
+                        dispatch(.collapse)
+                    }
                 }
             } catch {
-                navigationIssue = (error as? CodexNavigator.NavigationError)?.localizedDescription
-                    ?? "Could not open this Codex chat. Open Codex Desktop, then try again."
+                finishNavigation(requestID: requestID, context: context) {
+                    navigationFeedbackContext = context
+                    navigationRecoveryAvailable = true
+                    navigationFailed = true
+                    navigationIssue = (error as? CodexNavigator.NavigationError)?.localizedDescription
+                        ?? "Could not open Codex Desktop. Open it, then try again."
+                }
             }
         }
+    }
+
+    private func finishNavigation(requestID: UUID, context: CodexNavigationContext, apply: () -> Void) {
+        guard activeNavigationID == requestID else { return }
+        activeNavigationID = nil
+        isOpeningHost = false
+        guard !isDemoMode, context.matches(sessionID: presentation.snapshot.sessionID,
+                                           turnID: presentation.snapshot.turnID,
+                                           interactionID: presentation.snapshot.pendingInteraction?.id) else { return }
+        apply()
+    }
+
+    private func clearStaleNavigationFeedback() {
+        guard let context = navigationFeedbackContext,
+              !context.matches(sessionID: presentation.snapshot.sessionID,
+                               turnID: presentation.snapshot.turnID,
+                               interactionID: presentation.snapshot.pendingInteraction?.id) else { return }
+        navigationFeedbackContext = nil
+        navigationIssue = nil
+        navigationFailed = false
+        navigationRecoveryAvailable = false
     }
 
     private func presentationSnapshot(from monitor: ActivityMonitorSnapshot) -> ActivitySnapshot {
@@ -328,17 +416,32 @@ final class AppState: ObservableObject {
 
     func openFocusedHost() {
         guard !isOpeningHost else { return }
+        let destination = host
+        guard destination == .desktop else {
+            navigationIssue = "Nudge cannot open a Codex CLI terminal session. Return to its terminal window."
+            navigationFailed = true
+            navigationRecoveryAvailable = false
+            return
+        }
+        if !isDemoMode {
+            navigate(to: presentation.snapshot, activationOnly: false,
+                     collapseOnSuccess: !presentation.snapshot.phase.isAttention)
+            return
+        }
+
         isOpeningHost = true
         navigationIssue = nil
-        let destination = host
+        navigationFailed = false
+        navigationRecoveryAvailable = false
+        navigationFeedbackContext = nil
         Task { @MainActor in
             defer { isOpeningHost = false }
             do {
-                try await CodexNavigator().open(destination)
+                _ = try await codexNavigator.openDesktop(threadID: nil, preciseNavigationEnabled: false)
                 dispatch(.collapse)
             } catch {
                 navigationIssue = (error as? CodexNavigator.NavigationError)?.localizedDescription
-                    ?? "Could not open \(destination.title). Open the app, then try again."
+                    ?? "Could not open Codex Desktop. Open it, then try again."
             }
         }
     }

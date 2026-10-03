@@ -239,9 +239,7 @@ struct NotchRootView: View {
                 Spacer(minLength: 0)
                 NotchBadge(title: appState.presentation.snapshot.projectLabel)
             }
-            if let issue = appState.navigationIssue {
-                Text(issue).font(NotchType.readable(11)).foregroundStyle(NotchPalette.orange).lineLimit(2)
-            } else if let preview = interaction?.preview {
+            if let preview = interaction?.preview {
                 Text(preview)
                     .font(NotchType.readable(12))
                     .foregroundStyle(.white.opacity(0.92))
@@ -283,6 +281,19 @@ struct NotchRootView: View {
                 .buttonStyle(NotchButtonStyle(tone: .neutral))
                 .accessibilityLabel("Show all active Codex sessions")
             }
+            if let issue = appState.navigationIssue {
+                Text(issue).font(NotchType.readable(10))
+                    .foregroundStyle(appState.navigationFailed ? NotchPalette.orange : NotchPalette.secondary)
+                    .lineLimit(2)
+            }
+            if appState.navigationRecoveryAvailable {
+                Button("Open Codex Desktop") { appState.retryCodexActivation() }
+                    .font(NotchType.readable(10, weight: .medium))
+                    .foregroundStyle(NotchPalette.cyan)
+                    .buttonStyle(.plain)
+                    .disabled(appState.isOpeningHost)
+                    .accessibilityHint("Activate Codex Desktop without sending a thread link.")
+            }
             Text("For terminal work, return to its Codex CLI window.")
                 .font(NotchType.readable(10))
                 .foregroundStyle(NotchPalette.secondary)
@@ -323,6 +334,13 @@ struct NotchRootView: View {
                     .font(NotchType.readable(11))
                     .foregroundStyle(NotchPalette.orange)
                     .lineLimit(2)
+            }
+            if appState.navigationRecoveryAvailable {
+                Button("Open Codex Desktop") { appState.retryCodexActivation() }
+                    .font(NotchType.readable(11, weight: .medium))
+                    .foregroundStyle(NotchPalette.cyan)
+                    .buttonStyle(.plain)
+                    .disabled(appState.isOpeningHost)
             }
             if liveSessionsForDisplay.isEmpty {
                 Text("Waiting for local Codex activity.")

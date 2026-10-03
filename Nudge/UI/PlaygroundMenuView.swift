@@ -18,6 +18,14 @@ struct PlaygroundMenuView: View {
             set: { appState.setDemoMode($0) }
         ))
 
+        Toggle("Precise thread navigation (experimental)", isOn: Binding(
+            get: { appState.usePreciseThreadNavigation },
+            set: { appState.setPreciseThreadNavigation($0) }
+        ))
+        .disabled(appState.isOpeningHost)
+        Text("Opens the selected local session link in Codex Desktop when its ID is available.")
+            .font(.caption)
+
         Button(appState.wantsPanelVisible ? "Expand Nudge" : "Show Nudge") {
             appState.showPanel()
         }

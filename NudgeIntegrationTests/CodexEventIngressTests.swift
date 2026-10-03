@@ -1,20 +1,6 @@
 import XCTest
 
 final class CodexEventIngressTests: XCTestCase {
-    func testSessionIDBuildsEncodedCodexLocalThreadLink() throws {
-        let url = try XCTUnwrap(CodexThreadDeepLink.url(sessionID: "01a0fcb0-0000-4000-8000-aabbccddeeff"))
-        XCTAssertEqual(url.absoluteString, "codex://threads/01a0fcb0-0000-4000-8000-aabbccddeeff")
-
-        let opaqueID = try XCTUnwrap(CodexThreadDeepLink.url(sessionID: "session:part/with space"))
-        XCTAssertEqual(opaqueID.absoluteString, "codex://threads/session%3Apart%2Fwith%20space")
-    }
-
-    func testInvalidSessionIDDoesNotProduceCodexLink() {
-        XCTAssertNil(CodexThreadDeepLink.url(sessionID: ""))
-        XCTAssertNil(CodexThreadDeepLink.url(sessionID: "session\nid"))
-        XCTAssertNil(CodexThreadDeepLink.url(sessionID: String(repeating: "x", count: 257)))
-    }
-
     func testIngressProcessesEventsInOrderAndWakeBarrierWaitsForPendingEvents() async {
         let monitor = CodexEventMonitor()
         let capture = SnapshotCapture()

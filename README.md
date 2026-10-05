@@ -1,38 +1,67 @@
-# Nudge
+<p align="center">
+  <img src="Nudge/Assets/NudgieAppIcon.png" alt="Nudge app icon — Nudgie, the blue mascot" width="128" />
+</p>
 
-Companion kecil di menu bar dan notch Mac buat menemani kamu saat Codex bekerja. Jadi, waktu pindah ke aplikasi lain, kamu tetap bisa lihat progresnya dan tahu kapan perlu kembali ke Codex.
+<h1 align="center">Nudge</h1>
 
-Nudge menampilkan project, status kerja, ringkasan tool, dan perhatian saat ada pertanyaan, izin, atau pekerjaan selesai. Hover untuk melihat sesi yang terdeteksi; geser cursor keluar untuk menutupnya. Ada mascot original bernama **Nudgie**, dan Mac tanpa notch tetap bisa pakai tampilan compact di bagian atas layar.
+<p align="center">
+  A little companion for your Mac. A gentle nudge when Codex needs you.
+</p>
 
-**Masih dalam pengembangan.** Integrasi ditujukan untuk Codex Desktop dan CLI, tetapi verifikasi live keduanya masih pending. Navigasi thread dan permission actions masih experimental.
+<p align="center">
+  <img src="https://img.shields.io/badge/macOS-15%2B-222222?style=flat-square" alt="macOS 15 or later" />
+  <img src="https://img.shields.io/badge/Swift-6-F05138?style=flat-square" alt="Swift 6" />
+  <img src="https://img.shields.io/badge/status-in%20development-608FD5?style=flat-square" alt="In development" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/caynine9/Nudge/releases">Downloads</a> ·
+  <a href="#getting-started">Getting started</a> ·
+  <a href="#build-from-source">Build from source</a> ·
+  <a href="https://github.com/caynine9/Nudge/issues">Report an issue</a>
+</p>
+
+Nudge brings Codex activity to your Mac's notch. Switch to another app while Codex works, keep an eye on progress, and come back when something needs your attention. Meet **Nudgie**, the little blue mascot keeping you company.
+
+- **Progress at a glance.** See the project, work status, and current tool activity.
+- **A heads-up when it matters.** Notice questions, permission requests, completion, and interruptions.
+- **More detail on hover.** Browse detected sessions, then move away to collapse the view.
+- **Made for macOS.** Native menu-bar app, Reduce Motion support, and a compact fallback for displays without a notch.
+- **Local by default.** No Nudge account, no added telemetry, and no full transcript storage by default. Codex keeps working when Nudge is closed.
+
+> Nudge is in development. Integration targets Codex Desktop and CLI; live verification for both is still pending. Precise thread navigation and permission actions are experimental.
 
 ## Install
 
-Butuh **macOS 15 atau lebih baru** dan Codex Desktop atau CLI untuk memantau aktivitas.
+Requires **macOS 15 or later** and Codex Desktop or CLI to monitor activity.
 
-1. Buka [Releases](https://github.com/caynine9/Nudge/releases) dan unduh `Nudge-<version>-macOS.dmg` jika build tersedia.
-2. Buka DMG, lalu drag **Nudge.app** ke **Applications**.
-3. Jalankan Nudge dari Applications. Ikonnya muncul di menu bar; Nudge tidak tampil di Dock.
+1. Download `Nudge-<version>-macOS.dmg` from [Releases](https://github.com/caynine9/Nudge/releases), if a build is available.
+2. Open the DMG and drag **Nudge.app** into **Applications**.
+3. Launch Nudge. Look for it in the menu bar; it doesn't appear in the Dock.
 
-Build personal saat ini belum memakai Developer ID signing/notarization, jadi macOS bisa meminta konfirmasi tambahan. Detailnya ada di [panduan distribusi](docs/Distribution.md).
+Current personal builds use an ad-hoc signature and aren't notarized, so macOS may require an extra confirmation. See the [distribution guide](docs/Distribution.md) for details.
 
-## Hubungkan ke Codex
+## Getting started
 
-1. Dari menu bar Nudge, buka **Codex hooks** dan pilih **Host configuration**: Desktop atau CLI.
-2. Periksa lokasi konfigurasi. Kalau memakai folder khusus atau `CODEX_HOME`, gunakan **Choose configuration folder…**. Desktop dan CLI bisa memakai lokasi berbeda.
-3. Klik **Install or refresh hooks**, lalu konfirmasi. Hooks adalah penghubung lokal yang memberi tahu Nudge saat aktivitas Codex berubah.
-4. Review dan trust hooks Nudge di Codex sesuai petunjuk host. Matikan **Demo playground** jika aktif, lalu mulai atau lanjutkan thread lokal.
+Nudge uses local **hooks**: small event handlers that tell it when Codex activity changes.
 
-Installer membuat backup sebelum mengubah file yang sudah ada dan mempertahankan hooks lain. Untuk melepas integrasi, pilih **Remove Nudge hooks from selected config** sebelum menghapus aplikasinya.
+1. Open **Codex hooks** in Nudge's menu and choose **Host configuration**: Desktop or CLI.
+2. Check the configuration path. For a custom folder or `CODEX_HOME`, use **Choose configuration folder…**. Desktop and CLI may use different locations.
+3. Select **Install or refresh hooks** and confirm the installation.
+4. Review and trust Nudge's hooks in Codex as required by your host. Turn off **Demo playground** if enabled, then start or resume a local thread.
 
-## Build dari source
+The installer backs up existing files before changing them and preserves other hooks. To disconnect Nudge, choose **Remove Nudge hooks from selected config** before deleting the app.
 
-Butuh Xcode lengkap dengan toolchain Swift 6. Dari folder repo:
+## Build from source
+
+You'll need full Xcode with a Swift 6 toolchain. From the repository root:
 
 ```bash
 ./scripts/package-dmg.sh
 ```
 
-Hasilnya ada di `dist/Nudge-<version>-macOS.dmg`. Untuk development, buka `Nudge.xcodeproj`, pilih scheme **Nudge**, lalu Run. UI memakai SwiftUI dan AppKit; aktivitas masuk lewat helper native `NudgeBridge` dan Unix socket lokal.
+The universal Apple silicon / Intel build is packaged into `dist/Nudge-<version>-macOS.dmg`.
 
-Nudge tidak memerlukan akun sendiri, tidak menambahkan telemetry, dan tidak menyimpan transcript penuh secara default. Codex tetap bisa bekerja saat Nudge ditutup.
+For development, open `Nudge.xcodeproj`, select the **Nudge** scheme, and Run. Nudge uses SwiftUI for its interface, AppKit for the notch panel, and a native `NudgeBridge` helper with a local Unix socket for activity events.
+
+See the [project brief](docs/Nudge-Project-Brief.md) for product scope and architecture, or the [distribution guide](docs/Distribution.md) for packaging details.

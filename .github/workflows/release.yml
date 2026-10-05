@@ -1,0 +1,44 @@
+name: Personal macOS release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # This runner includes the Xcode 27 toolchain used by the project.
+    runs-on: xcode-27
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Build and package universal DMG
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="$VERSION" \
+          BUILD_NUMBER="$GITHUB_RUN_NUMBER" \
+            ./scripts/package-dmg.sh
+
+      - name: Verify app and disk image
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          APP_PATH="build/DerivedData/Build/Products/Release/Nudge.app"
+          DMG_PATH="dist/Nudge-$VERSION-macOS.dmg"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          hdiutil verify "$DMG_PATH"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" "dist/Nudge-$VERSION-macOS.dmg" \
+            --title "Nudge $VERSION" \
+            --generate-notes

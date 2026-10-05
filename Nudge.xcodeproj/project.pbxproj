@@ -88,8 +88,9 @@
         A70000000000000000000002 /* CodexThreadMetadataReader.swift in NudgeIntegrationTests */ = {isa = PBXBuildFile; fileRef = B70000000000000000000001; };
         A70000000000000000000003 /* CodexThreadMetadataReaderTests.swift in NudgeIntegrationTests */ = {isa = PBXBuildFile; fileRef = B70000000000000000000002; };
         A70000000000000000000004 /* ActivityProjectGroups.swift in Nudge */ = {isa = PBXBuildFile; fileRef = B70000000000000000000003; };
-        A70000000000000000000005 /* ActivityProjectGroups.swift in NudgeCoreTests */ = {isa = PBXBuildFile; fileRef = B70000000000000000000003; };
-        A70000000000000000000006 /* ActivityProjectGroupsTests.swift in NudgeCoreTests */ = {isa = PBXBuildFile; fileRef = B70000000000000000000004; };
+		A70000000000000000000005 /* ActivityProjectGroups.swift in NudgeCoreTests */ = {isa = PBXBuildFile; fileRef = B70000000000000000000003; };
+		A70000000000000000000006 /* ActivityProjectGroupsTests.swift in NudgeCoreTests */ = {isa = PBXBuildFile; fileRef = B70000000000000000000004; };
+		D80000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C80000000000000000000001; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -145,8 +146,9 @@
         B90000000000000000000001 /* CodexNavigatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NudgeIntegrationTests/CodexNavigatorTests.swift; sourceTree = SOURCE_ROOT; };
         B30000000000000000000001 /* PermissionWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nudge/IPC/PermissionWire.swift; sourceTree = SOURCE_ROOT; };
         B30000000000000000000002 /* PermissionSocketTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nudge/IPC/PermissionSocketTransport.swift; sourceTree = SOURCE_ROOT; };
-        B30000000000000000000003 /* PermissionBroker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nudge/Services/PermissionBroker.swift; sourceTree = SOURCE_ROOT; };
-        B30000000000000000000004 /* PermissionActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NudgeIntegrationTests/PermissionActionTests.swift; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000003 /* PermissionBroker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nudge/Services/PermissionBroker.swift; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000004 /* PermissionActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NudgeIntegrationTests/PermissionActionTests.swift; sourceTree = SOURCE_ROOT; };
+		C80000000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Nudge/Assets.xcassets; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -164,6 +166,7 @@
 				B1000000000000000000000E /* PlaygroundScenario.swift */,
 				B1000000000000000000000F /* CodexNavigator.swift */,
 				B80000000000000000000001 /* CodexUsageIcon.png */,
+				C80000000000000000000001 /* Assets.xcassets */,
                 B40000000000000000000001 /* SpaceTransition.swift */,
                 B40000000000000000000002 /* SpaceTransitionTests.swift */,
 				D10000000000000000000002 /* Nudge */,
@@ -267,7 +270,7 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		F10000000000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A80000000000000000000001 /* CodexUsageIcon.png in Resources */, ); runOnlyForDeploymentPostprocessing = 0; };
+		F10000000000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A80000000000000000000001 /* CodexUsageIcon.png in Resources */, D80000000000000000000001 /* Assets.xcassets in Resources */, ); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
@@ -288,6 +291,7 @@
 			SWIFT_STRICT_CONCURRENCY = complete;
 		}; name = Release; };
 		F10000000000000000000012 /* Debug Nudge */ = {isa = XCBuildConfiguration; buildSettings = {
+			ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 			CODE_SIGN_IDENTITY = "-";
 			CODE_SIGN_STYLE = Manual;
 			ENABLE_APP_SANDBOX = NO;
@@ -295,6 +299,8 @@
 			INFOPLIST_FILE = Nudge/Support/Info.plist;
 			LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks", );
 			MACOSX_DEPLOYMENT_TARGET = 15.0;
+			CURRENT_PROJECT_VERSION = 1;
+			MARKETING_VERSION = 0.1;
 			PRODUCT_BUNDLE_IDENTIFIER = com.nudge.companion;
 			PRODUCT_NAME = Nudge;
 			SUPPORTED_PLATFORMS = macosx;
@@ -303,13 +309,17 @@
 			SWIFT_VERSION = 6.0;
 		}; name = Debug; };
 		F10000000000000000000013 /* Release Nudge */ = {isa = XCBuildConfiguration; buildSettings = {
+			ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 			CODE_SIGN_IDENTITY = "-";
 			CODE_SIGN_STYLE = Manual;
+			ENABLE_HARDENED_RUNTIME = YES;
 			ENABLE_APP_SANDBOX = NO;
 			GENERATE_INFOPLIST_FILE = NO;
 			INFOPLIST_FILE = Nudge/Support/Info.plist;
 			LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks", );
 			MACOSX_DEPLOYMENT_TARGET = 15.0;
+			CURRENT_PROJECT_VERSION = 1;
+			MARKETING_VERSION = 0.1;
 			PRODUCT_BUNDLE_IDENTIFIER = com.nudge.companion;
 			PRODUCT_NAME = Nudge;
 			SUPPORTED_PLATFORMS = macosx;

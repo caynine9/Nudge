@@ -9,10 +9,11 @@ SIGNING_IDENTITY="${SIGNING_IDENTITY:--}"
 DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-}"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-$ROOT_DIR/build/DerivedData}"
 DIST_DIR="${DIST_DIR:-$ROOT_DIR/dist}"
-APP_ICON_PATH="$ROOT_DIR/Nudge/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+APP_ICON_PATH="$ROOT_DIR/Nudge/Assets/NudgieAppIcon.png"
 APP_PATH="${APP_PATH:-$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION/Nudge.app}"
 
 swift "$ROOT_DIR/scripts/render-app-icon.swift" "$APP_ICON_PATH"
+bash "$ROOT_DIR/scripts/make-app-icon.sh"
 
 if [[ -z "${SKIP_BUILD:-}" ]]; then
     xcodebuild \

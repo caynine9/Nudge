@@ -22,6 +22,60 @@ final class BridgeFailureTests: XCTestCase {
         XCTAssertTrue(output.isEmpty)
     }
 
+    func testMemoryWorkersNeverReachNudgeButUserSessionsStillDo() throws {
+        let (directory, eventPath) = temporarySocketPath()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let codexHome = directory.appendingPathComponent("custom codex home")
+        let memoryRoot = codexHome.appendingPathComponent("memories_v2")
+        let legacyMemoryRoot = codexHome.appendingPathComponent("memories")
+        let userProject = directory.appendingPathComponent("memories_v2")
+        for workspace in [memoryRoot, legacyMemoryRoot, userProject] {
+            try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        }
+
+        let userSessions = expectation(description: "only user sessions reach the event socket")
+        userSessions.expectedFulfillmentCount = 2
+        let eventServer = NudgeSocketServer(path: eventPath) { event in
+            guard ["saved-thread", "same-name-project"].contains(event.sessionID) else {
+                XCTFail("An internal memory worker reached Nudge")
+                return
+            }
+            userSessions.fulfill()
+        }
+        let permissionPath = directory.appendingPathComponent("permission.sock").path
+        let permissionServer = NudgePermissionSocketServer(path: permissionPath) { _ in
+            XCTFail("An internal memory worker requested a Nudge permission decision")
+            return .allowOnce
+        }
+        try eventServer.start()
+        try permissionServer.start()
+        defer { eventServer.stop(); permissionServer.stop() }
+
+        func invoke(_ event: String, session: String, workspace: URL, reportedCWD: URL? = nil,
+                    transcript: String? = nil, permissionActions: Bool = false) throws {
+            let payload: [String: Any] = [
+                "hook_event_name": event, "session_id": session, "turn_id": "turn",
+                "cwd": (reportedCWD ?? workspace).path, "transcript_path": transcript as Any? ?? NSNull(),
+                "tool_name": "apply_patch", "tool_use_id": "tool"
+            ]
+            let (status, output, _) = try runBridge(input: JSONSerialization.data(withJSONObject: payload),
+                                                   socketPath: eventPath, event: event,
+                                                   permissionSocketPath: permissionPath,
+                                                   permissionActions: permissionActions,
+                                                   workingDirectory: workspace, codexHome: codexHome)
+            XCTAssertEqual(status, EXIT_SUCCESS)
+            XCTAssertEqual(String(decoding: output, as: UTF8.self), event == "Stop" ? "{}\n" : "")
+        }
+
+        try invoke("PreToolUse", session: "worker", workspace: memoryRoot, reportedCWD: userProject)
+        try invoke("Stop", session: "legacy-worker", workspace: legacyMemoryRoot)
+        try invoke("PermissionRequest", session: "worker", workspace: memoryRoot, permissionActions: true)
+        try invoke("PreToolUse", session: "saved-thread", workspace: memoryRoot, transcript: "/fake/session.jsonl")
+        try invoke("PreToolUse", session: "same-name-project", workspace: userProject, reportedCWD: memoryRoot)
+        eventServer.flushEvents()
+        wait(for: [userSessions], timeout: 2)
+    }
+
     func testBridgeSubprocessHandlesStalledInputWithinDeadline() throws {
         let process = try bridgeProcess(socketPath: "/tmp/nudge-test-no-listener.sock")
         let input = Pipe()
@@ -100,10 +154,13 @@ final class BridgeFailureTests: XCTestCase {
 
     private func runBridge(input: Data, socketPath: String, event: String = "Stop",
                            permissionSocketPath: String? = nil,
-                           permissionActions: Bool = false) throws -> (Int32, Data, TimeInterval) {
+                           permissionActions: Bool = false,
+                           workingDirectory: URL? = nil, codexHome: URL? = nil) throws -> (Int32, Data, TimeInterval) {
         let process = try bridgeProcess(socketPath: socketPath, event: event,
                                         permissionActions: permissionActions,
                                         permissionSocketPath: permissionSocketPath)
+        if let workingDirectory { process.currentDirectoryURL = workingDirectory }
+        if let codexHome { process.environment?["CODEX_HOME"] = codexHome.path }
         let stdin = Pipe()
         let stdout = Pipe()
         process.standardInput = stdin

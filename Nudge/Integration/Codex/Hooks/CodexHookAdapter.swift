@@ -11,6 +11,7 @@ struct CodexHookAdapter {
               let toolName = boundedString(object["tool_name"], maximumBytes: 128) else {
             throw HookPayloadError.missingIdentity
         }
+        try rejectMemoryWorker(object)
         let input = object["tool_input"] as? [String: Any]
         let invocationID = UUID().uuidString.lowercased()
         let request = PermissionRequestMessage(
@@ -37,6 +38,7 @@ struct CodexHookAdapter {
               let sessionID = boundedString(object["session_id"], maximumBytes: WireEnvelope.maximumIdentifierBytes) else {
             throw HookPayloadError.missingIdentity
         }
+        try rejectMemoryWorker(object)
 
         let turnID = boundedString(object["turn_id"], maximumBytes: WireEnvelope.maximumIdentifierBytes)
         let cwd = object["cwd"] as? String
@@ -103,6 +105,28 @@ struct CodexHookAdapter {
         )
         try envelope.validate()
         return envelope
+    }
+
+    private func rejectMemoryWorker(_ object: [String: Any]) throws {
+        // Codex runs memory consolidation as an ephemeral thread under its memory root.
+        // Require both signals: a missing transcript alone is valid for other sessions.
+        guard object["transcript_path"] is NSNull else { return }
+
+        let codexHome: URL
+        if let customHome = ProcessInfo.processInfo.environment["CODEX_HOME"], customHome.hasPrefix("/") {
+            codexHome = URL(fileURLWithPath: customHome, isDirectory: true)
+        } else {
+            codexHome = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex", isDirectory: true)
+        }
+        // Tool hooks can report a tool-specific cwd; Codex launches the command in the session cwd.
+        let homeComponents = codexHome.resolvingSymlinksInPath().pathComponents
+        let workingDirectory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+        let components = workingDirectory.resolvingSymlinksInPath().pathComponents
+        guard components.starts(with: homeComponents), components.count > homeComponents.count else { return }
+        let directory = components[homeComponents.count]
+        if directory == "memories" || directory == "memories_v2" {
+            throw HookPayloadError.internalMemoryWorker
+        }
     }
 
     private func boundedString(_ value: Any?, maximumBytes: Int) -> String? {
@@ -226,4 +250,5 @@ enum HookPayloadError: Error, Equatable {
     case inputTooLarge
     case invalidShape
     case missingIdentity
+    case internalMemoryWorker
 }
